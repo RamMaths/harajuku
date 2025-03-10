@@ -10,7 +10,7 @@ import (
 // TokenService is an interface for interacting with token-related business logic
 type TokenService interface {
 	// CreateToken creates a new token for a given user
-	CreateToken(user *domain.Usuario) (string, error)
+	CreateToken(user *domain.User) (string, error)
 	// VerifyToken verifies the token and returns the payload
 	VerifyToken(token string) (*domain.TokenPayload, error)
 }
