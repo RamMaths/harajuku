@@ -57,7 +57,7 @@ func (ur *UserRepository) CreateUser(ctx context.Context, user *domain.User) (*d
 }
 
 // GetUserByID gets a user by ID from the database
-func (ur *UserRepository) GetUserByID(ctx context.Context, id uint64) (*domain.User, error) {
+func (ur *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	var user domain.User
 
 	query := ur.db.QueryBuilder.Select("*").
