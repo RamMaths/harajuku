@@ -1,4 +1,4 @@
-# Go POS
+# Harajuku Backend
 
 ## Description
 
@@ -36,3 +36,7 @@ This project uses Hexagonal architecture in order to get an application that fol
     ```bash
     task dev
     ```
+
+## Branch naming guide
+
+Follow the [branch naming guide](./docs/branch-naming-guide.md) if you want to contribute.
