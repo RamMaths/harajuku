@@ -84,7 +84,7 @@ tasks:
 
   dev:
     desc: "Start development server"
-    cmd: ./bin/air
+    cmd: air
 
   lint:
     desc: "Run linter"
