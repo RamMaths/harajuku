@@ -35,6 +35,14 @@ func NewRouter(
 	allowedOrigins := config.AllowedOrigins
 	originsList := strings.Split(allowedOrigins, ",")
 	ginConfig.AllowOrigins = originsList
+  ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Authorization")
+  ginConfig.AllowCredentials = true
+
+  // In case we need more geaders
+  //ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Content-Type", "X-Requested-With")
+
+  // You might need other headers too
+  ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Content-Type", "X-Requested-With")
 
 	router := gin.New()
 	router.Use(sloggin.New(slog.Default()), gin.Recovery(), cors.New(ginConfig))
