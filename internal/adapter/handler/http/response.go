@@ -69,6 +69,8 @@ func newUserResponse(user *domain.User) userResponse {
 	return userResponse{
 		ID:        user.ID,
 		Name:      user.Name,
+		LastName:      user.LastName,
+		secondLastname:      user.SecondLastName,
 		Email:     user.Email,
 	}
 }

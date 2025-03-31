@@ -28,8 +28,8 @@ func NewUserRepository(db *postgres.DB) *UserRepository {
 // CreateUser creates a new user in the database
 func (ur *UserRepository) CreateUser(ctx context.Context, user *domain.User) (*domain.User, error) {
     query := ur.db.QueryBuilder.Insert("users").
-    Columns("name", "lastName", "SecondLastName","email", "password").
-    Values(user.Name, user.LastName, user.SecondLastName, user.Email, user.Password).
+    Columns("id", "name", `"lastName"`, `"secondLastName"`, "email", "password"). // Use quoted identifiers
+    Values(user.ID, user.Name, user.LastName, user.SecondLastName, user.Email, user.Password).
     Suffix("RETURNING *")
 
     sql, args, err := query.ToSql()
@@ -171,8 +171,8 @@ func (ur *UserRepository) UpdateUser(ctx context.Context, user *domain.User) (*d
 
 	query := ur.db.QueryBuilder.Update("users").
 		Set("name", sq.Expr("COALESCE(?, name)", name)).
-		Set("lastName", sq.Expr("COALESCE(?, name)", lastName)).
-		Set("secondLastName", sq.Expr("COALESCE(?, name)", secondLastName)).
+		Set(`"lastName"`, sq.Expr("COALESCE(?, name)", lastName)).
+		Set(`"secondLastName"`, sq.Expr("COALESCE(?, name)", secondLastName)).
 		Set("email", sq.Expr("COALESCE(?, email)", email)).
 		Set("password", sq.Expr("COALESCE(?, password)", password)).
 		Where(sq.Eq{"id": user.ID}).

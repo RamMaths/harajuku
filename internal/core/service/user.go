@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
@@ -39,6 +40,7 @@ func (us *UserService) Register(ctx context.Context, user *domain.User) (*domain
 
 	user, err = us.repo.CreateUser(ctx, user)
 	if err != nil {
+    slog.Error("User registration failed", "error", err)
 		if err == domain.ErrConflictingData {
 			return nil, err
 		}

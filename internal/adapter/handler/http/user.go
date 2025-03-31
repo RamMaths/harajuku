@@ -22,7 +22,9 @@ func NewUserHandler(svc port.UserService) *UserHandler {
 
 // registerRequest represents the request body for creating a user
 type registerRequest struct {
-	Name     string `json:"name" binding:"required" example:"John Doe"`
+	Name     string `json:"name" binding:"required" example:"John"`
+	LastName     string `json:"lastName" binding:"required" example:"Doe"`
+	SecondLastName     string `json:"SecondLastName" example:"Doe"`
 	Email    string `json:"email" binding:"required,email" example:"test@example.com"`
 	Password string `json:"password" binding:"required,min=8" example:"12345678"`
 }
@@ -49,9 +51,14 @@ func (uh *UserHandler) Register(ctx *gin.Context) {
 		return
 	}
 
+  user_id := uuid.New()
+
 	user := domain.User{
+    ID: user_id,
 		Name:     req.Name,
 		Email:    req.Email,
+    LastName: req.LastName,
+    SecondLastName: req.SecondLastName,
 		Password: req.Password,
 	}
 
