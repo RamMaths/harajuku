@@ -10,7 +10,7 @@ var userRoleValidator validator.Func = func(fl validator.FieldLevel) bool {
 	userRole := fl.Field().Interface().(domain.UserRole)
 
 	switch userRole {
-	case "admin", "client":
+	case domain.Admin, domain.Client:
 		return true
 	default:
 		return false

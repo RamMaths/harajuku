@@ -8,7 +8,7 @@ type UserRole string
 // UserRole enum values
 const (
 	Admin   UserRole = "admin"
-	client UserRole = "client"
+	Client UserRole = "client"
 )
 
 // User is an entity that represents a user
