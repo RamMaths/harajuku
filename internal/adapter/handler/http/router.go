@@ -6,8 +6,11 @@ import (
 
 	"harajuku/backend/internal/adapter/config"
 	"harajuku/backend/internal/core/port"
+
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 	sloggin "github.com/samber/slog-gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -28,6 +31,14 @@ func NewRouter(
 	// Disable debug mode in production
 	if config.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
+	}
+
+  // Custom validators
+	v, ok := binding.Validator.Engine().(*validator.Validate)
+	if ok {
+		if err := v.RegisterValidation("user_role", userRoleValidator); err != nil {
+			return nil, err
+		}
 	}
 
 	// CORS
