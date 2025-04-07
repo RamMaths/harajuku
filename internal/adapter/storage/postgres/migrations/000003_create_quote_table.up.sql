@@ -1,0 +1,14 @@
+CREATE TABLE "Quote" (
+	"id" UUID NOT NULL UNIQUE,
+	"typeOfServiceId" UUID NOT NULL,
+	"clientId" UUID NOT NULL,
+	"time" TIMESTAMPTZ NOT NULL,
+	"description" TEXT,
+	"state" TEXT NOT NULL,
+	"price" REAL NOT NULL,
+	"testRequired" BOOLEAN NOT NULL,
+    
+	PRIMARY KEY("id"),
+	FOREIGN KEY("typeOfServiceId") REFERENCES "TypeOfService"("id") ON UPDATE CASCADE ON DELETE RESTRICT,
+	FOREIGN KEY("clientId") REFERENCES "users"("id") ON UPDATE CASCADE ON DELETE RESTRICT
+);
