@@ -44,6 +44,7 @@ func (ur *UserRepository) CreateUser(ctx context.Context, user *domain.User) (*d
         &user.SecondLastName,
         &user.Email,
         &user.Password,
+        &user.Role,
     )
 
     if err != nil {
@@ -77,6 +78,7 @@ func (ur *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*domai
 		&user.SecondLastName,
 		&user.Email,
 		&user.Password,
+    &user.Role,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -109,6 +111,7 @@ func (ur *UserRepository) GetUserByEmail(ctx context.Context, email string) (*do
     &user.SecondLastName,
     &user.Email,
     &user.Password,
+    &user.Role,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -150,6 +153,7 @@ func (ur *UserRepository) ListUsers(ctx context.Context, skip, limit uint64) ([]
         &user.SecondLastName,
         &user.Email,
         &user.Password,
+        &user.Role,
 		)
 		if err != nil {
 			return nil, err
@@ -168,6 +172,7 @@ func (ur *UserRepository) UpdateUser(ctx context.Context, user *domain.User) (*d
 	secondLastName := nullString(user.SecondLastName)
 	email := nullString(user.Email)
 	password := nullString(user.Password)
+  role := nullString(string(user.Role))
 
 	query := ur.db.QueryBuilder.Update("users").
 		Set("name", sq.Expr("COALESCE(?, name)", name)).
@@ -175,6 +180,7 @@ func (ur *UserRepository) UpdateUser(ctx context.Context, user *domain.User) (*d
 		Set(`"secondLastName"`, sq.Expr("COALESCE(?, name)", secondLastName)).
 		Set("email", sq.Expr("COALESCE(?, email)", email)).
 		Set("password", sq.Expr("COALESCE(?, password)", password)).
+    Set("role", sq.Expr("COALESCE(?, role)", role)).
 		Where(sq.Eq{"id": user.ID}).
 		Suffix("RETURNING *")
 
@@ -190,7 +196,7 @@ func (ur *UserRepository) UpdateUser(ctx context.Context, user *domain.User) (*d
     &user.SecondLastName,
     &user.Email,
     &user.Password,
-
+    &user.Role,
 	)
 	if err != nil {
 		if errCode := ur.db.ErrorCode(err); errCode == "23505" {

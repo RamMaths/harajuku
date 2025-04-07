@@ -163,6 +163,7 @@ type updateUserRequest struct {
 	SecondLastName string          `json:"name" binding:"omitempty,required" example:"John Doe"`
 	Email          string          `json:"email" binding:"omitempty,required,email" example:"test@example.com"`
 	Password       string          `json:"password" binding:"omitempty,required,min=8" example:"12345678"`
+  Role     domain.UserRole `json:"role" binding:"omitempty,required,user_role" example:"admin"`
 }
 
 // UpdateUser godoc
@@ -191,6 +192,7 @@ func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
 
     idStr:= ctx.Param("id")
     id, err := uuid.Parse(idStr)
+
     if err != nil {
         validationError(ctx, err)
         return
@@ -203,6 +205,7 @@ func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
         SecondLastName:     req.SecondLastName,
         Email:    req.Email,
         Password: req.Password,
+        Role: req.Role,
     }
 
     _, err = uh.svc.UpdateUser(ctx, &user)
