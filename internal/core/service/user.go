@@ -102,7 +102,7 @@ func (us *UserService) GetUser(ctx context.Context, id uuid.UUID) (*domain.User,
 }
 
 // ListUsers lists all users
-func (us *UserService) ListUsers(ctx context.Context, skip, limit uint64) ([]domain.User, error) {
+func (us *UserService) ListUsers(ctx context.Context, skip, limit uint64, filters domain.UserFilters) ([]domain.User, error) {
 	var users []domain.User
 
 	params := util.GenerateCacheKeyParams(skip, limit)
@@ -117,7 +117,7 @@ func (us *UserService) ListUsers(ctx context.Context, skip, limit uint64) ([]dom
 		return users, nil
 	}
 
-	users, err = us.repo.ListUsers(ctx, skip, limit)
+	users, err = us.repo.ListUsers(ctx, skip, limit, filters)
 	if err != nil {
 		return nil, domain.ErrInternal
 	}
