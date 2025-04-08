@@ -130,7 +130,7 @@ func (us *QuoteService) ListQuotes(ctx context.Context, skip, limit uint64) ([]d
 	return quotes, nil
 }
 
-// UpdateQuote updates a quote's name, email, and password
+// UpdateQuote updates a quote's content, author, and associated metadata.
 func (us *QuoteService) UpdateQuote(ctx context.Context, quote *domain.Quote) (*domain.Quote, error) {
 	existingQuote, err := us.repo.GetQuoteByID(ctx, quote.ID)
 	if err != nil {
