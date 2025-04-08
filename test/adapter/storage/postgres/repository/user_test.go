@@ -240,18 +240,36 @@ func TestListUsersIntegrationAndCheckFilters(t *testing.T) {
       t.Fatalf("data verification failed: %v (count: %d)", err, count)
   }
 
-  // Now test ListUsers
-  filters := domain.UserFilters{
-    Name: "John",
+  // Test 1: Empty filters should return all users (expecting 2 users)
+  filters := domain.UserFilters{}
+  result, err := repo.ListUsers(ctx, 1, 10, filters)
+  if err != nil || len(result) != 2 {
+    t.Fatalf("Empty filter test failed: expected 2 users, got %d, error: %v", len(result), err)
   }
 
-  result, err := repo.ListUsers(ctx, 0, 10, filters) // Skip=0 to get first page
-  if err != nil {
-      t.Fatalf("failed to list users: %v", err)
+  filters = domain.UserFilters{Name: "Ram"}
+  result, err = repo.ListUsers(ctx, 1, 10, filters)
+  if err != nil || len(result) != 1 || result[0].Name != "Ramses" {
+    t.Fatalf("Partial name filter test failed: expected Ramses, got %+v, error: %v", result, err)
   }
 
-  if len(result) != 0 {
-      t.Errorf("expected 0 users, got %d", len(result))
-      t.Logf("Actual users: %+v", result) // Debug output
+  filters = domain.UserFilters{Name: "Mar"}
+  result, err = repo.ListUsers(ctx, 1, 10, filters)
+  if err != nil || len(result) != 1 || result[0].Name != "Mariana" {
+    t.Fatalf("Case-insensitive filter test failed: expected Mariana, got %+v, error: %v", result, err)
+  }
+
+  // Test 4: Filtering by role ("user" should return Bob and Charlie)
+  filters = domain.UserFilters{Role: "client"}
+  result, err = repo.ListUsers(ctx, 1, 10, filters)
+  if err != nil || len(result) != 2 {
+    t.Fatalf("Role filter test failed: expected 2 users, got %d, error: %v", len(result), err)
+  }
+
+  // Test 5: Combination of filters (filter by last name and role; using "own" and "user" to match "Charlie Brown")
+  filters = domain.UserFilters{LastName: "Mata", Role: "client"}
+  result, err = repo.ListUsers(ctx, 1, 10, filters)
+  if err != nil || len(result) != 2 {
+    t.Fatalf("Role filter test failed: expected 2 users, got %d, error: %v", len(result), err)
   }
 }
