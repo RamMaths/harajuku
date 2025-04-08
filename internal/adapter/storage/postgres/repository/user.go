@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"harajuku/backend/internal/adapter/storage/postgres"
 	"harajuku/backend/internal/core/domain"
 	"log/slog"
@@ -127,33 +126,32 @@ func (ur *UserRepository) GetUserByEmail(ctx context.Context, email string) (*do
 
 // ListUsers lists users from the database with optional filters
 func (ur *UserRepository) ListUsers(ctx context.Context, skip, limit uint64, filters domain.UserFilters) ([]domain.User, error) {
-var users []domain.User
+    var user domain.User
+    var users []domain.User
 
-    offset := skip * limit
-    
     query := ur.db.QueryBuilder.Select("*").
         From("users").
         OrderBy("id").
         Limit(limit).
-        Offset(offset)
+        Offset((skip - 1) * limit)
 
-    // Case-insensitive search with proper column names
+    // Add filters if they are provided
     if filters.Name != "" {
-        query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+filters.Name+"%")
+        query = query.Where(sq.ILike{"name": "%" + filters.Name + "%"})
     }
     if filters.LastName != "" {
-        query = query.Where("LOWER(\"lastName\") LIKE LOWER(?)", "%"+filters.LastName+"%")
+        query = query.Where(sq.ILike{`"lastName"`: "%" + filters.LastName + "%"})
     }
     if filters.SecondLastName != "" {
-        query = query.Where("LOWER(\"secondLastName\") LIKE LOWER(?)", "%"+filters.SecondLastName+"%")
+        query = query.Where(sq.ILike{`"secondLastName"`: "%" + filters.SecondLastName + "%"})
     }
     if filters.Role != "" {
-        query = query.Where("\"role\" = ?", filters.Role)
+        query = query.Where(sq.Eq{"role": filters.Role})
     }
 
     sql, args, err := query.ToSql()
     if err != nil {
-        return nil, fmt.Errorf("query build failed: %w", err)
+        return nil, err
     }
 
     // Debug logging - crucial for troubleshooting
@@ -162,16 +160,13 @@ var users []domain.User
         "args", args,
         "filters", filters)
 
-    fmt.Printf("SQL: %s\nArgs: %v\n", sql, args)
-
     rows, err := ur.db.Query(ctx, sql, args...)
     if err != nil {
-        return nil, fmt.Errorf("query execution failed: %w", err)
+        return nil, err
     }
     defer rows.Close()
 
     for rows.Next() {
-        var user domain.User
         err := rows.Scan(
             &user.ID,
             &user.Name,
@@ -182,8 +177,9 @@ var users []domain.User
             &user.Role,
         )
         if err != nil {
-            return nil, fmt.Errorf("row scan failed: %w", err)
+            return nil, err
         }
+
         users = append(users, user)
     }
 
