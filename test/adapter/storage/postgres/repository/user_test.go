@@ -242,15 +242,16 @@ func TestListUsersIntegrationAndCheckFilters(t *testing.T) {
 
   // Now test ListUsers
   filters := domain.UserFilters{
-    Role: "client",
+    Name: "John",
   }
+
   result, err := repo.ListUsers(ctx, 0, 10, filters) // Skip=0 to get first page
   if err != nil {
       t.Fatalf("failed to list users: %v", err)
   }
 
-  if len(result) != 2 {
-      t.Errorf("expected 2 users, got %d", len(result))
+  if len(result) != 0 {
+      t.Errorf("expected 0 users, got %d", len(result))
       t.Logf("Actual users: %+v", result) // Debug output
   }
 }

@@ -127,29 +127,28 @@ func (ur *UserRepository) GetUserByEmail(ctx context.Context, email string) (*do
 
 // ListUsers lists users from the database with optional filters
 func (ur *UserRepository) ListUsers(ctx context.Context, skip, limit uint64, filters domain.UserFilters) ([]domain.User, error) {
-    var users []domain.User
+var users []domain.User
 
-    // Proper offset calculation
     offset := skip * limit
     
     query := ur.db.QueryBuilder.Select("*").
         From("users").
-        OrderBy("\"id\"").  // Quoted identifier
+        OrderBy("id").
         Limit(limit).
         Offset(offset)
 
-    // Add filters with properly quoted column names
+    // Case-insensitive search with proper column names
     if filters.Name != "" {
-        query = query.Where(sq.ILike{"\"name\"": "%" + filters.Name + "%"})
+        query = query.Where("LOWER(name) LIKE LOWER(?)", "%"+filters.Name+"%")
     }
     if filters.LastName != "" {
-        query = query.Where(sq.ILike{"\"lastName\"": "%" + filters.LastName + "%"})  // Exact case match
+        query = query.Where("LOWER(\"lastName\") LIKE LOWER(?)", "%"+filters.LastName+"%")
     }
     if filters.SecondLastName != "" {
-        query = query.Where(sq.ILike{"\"secondLastName\"": "%" + filters.SecondLastName + "%"})
+        query = query.Where("LOWER(\"secondLastName\") LIKE LOWER(?)", "%"+filters.SecondLastName+"%")
     }
     if filters.Role != "" {
-        query = query.Where(sq.Eq{"\"role\"": filters.Role})
+        query = query.Where("\"role\" = ?", filters.Role)
     }
 
     sql, args, err := query.ToSql()
@@ -157,11 +156,13 @@ func (ur *UserRepository) ListUsers(ctx context.Context, skip, limit uint64, fil
         return nil, fmt.Errorf("query build failed: %w", err)
     }
 
-    // Debug log the final query
-    slog.DebugContext(ctx, "Executing query", 
+    // Debug logging - crucial for troubleshooting
+    slog.Log(ctx, slog.LevelInfo.Level(), "Executing query", 
         "sql", sql, 
         "args", args,
         "filters", filters)
+
+    fmt.Printf("SQL: %s\nArgs: %v\n", sql, args)
 
     rows, err := ur.db.Query(ctx, sql, args...)
     if err != nil {

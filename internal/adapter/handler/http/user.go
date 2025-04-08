@@ -3,9 +3,9 @@ package http
 import (
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
+	"log/slog"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 )
 
@@ -105,42 +105,36 @@ type userFiltersRequest struct {
 //	@Router			/users [get]
 //	@Security		BearerAuth
 func (uh *UserHandler) ListUsers(ctx *gin.Context) {
-	var req listUsersRequest
-	var usersList []userResponse
+  var req listUsersRequest
+  var usersList []userResponse
 
-	if err := ctx.ShouldBindQuery(&req); err != nil {
-		validationError(ctx, err)
-		return
-	}
-
-  // Now manually bind the filter parameters
-  req.Filters = userFiltersRequest {
-    Name:           ctx.Query("filters.name"),
-    LastName:       ctx.Query("filters.lastName"),
-    SecondLastName: ctx.Query("filters.secondLastName"),
-    Role:           ctx.Query("filters.role"),
-  }
-  
-  // Validate the filters
-  validate := validator.New()
-  if err := validate.Struct(req.Filters); err != nil {
+  // First bind the basic parameters
+  if err := ctx.ShouldBindQuery(&req); err != nil {
     validationError(ctx, err)
     return
   }
-  
-  // Convert to domain filters
-  filters := domain.UserFilters {
-    Name:           req.Filters.Name,
-    LastName:       req.Filters.LastName,
-    SecondLastName: req.Filters.SecondLastName,
-    Role:           domain.UserRole(req.Filters.Role),
+
+  // Manually extract filter parameters
+  filters := domain.UserFilters{
+    Name:           ctx.Query("filters.name"),
+    LastName:       ctx.Query("filters.lastName"),
+    SecondLastName: ctx.Query("filters.secondLastName"),
+    Role:           domain.UserRole(ctx.Query("filters.role")),
   }
 
-	users, err := uh.svc.ListUsers(ctx, req.Skip, req.Limit, filters)
-	if err != nil {
-		handleError(ctx, err)
-		return
-	}
+  // Debug output
+  slog.Info("Filter parameters",
+    "name", filters.Name,
+    "lastName", filters.LastName,
+    "role", filters.Role,
+    "rawQuery", ctx.Request.URL.RawQuery,
+  )
+
+  users, err := uh.svc.ListUsers(ctx, req.Skip, req.Limit, filters)
+  if err != nil {
+    handleError(ctx, err)
+    return
+  }
 
 	for _, user := range users {
 		usersList = append(usersList, newUserResponse(&user))
