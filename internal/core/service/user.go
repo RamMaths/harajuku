@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
@@ -102,37 +103,43 @@ func (us *UserService) GetUser(ctx context.Context, id uuid.UUID) (*domain.User,
 }
 
 // ListUsers lists all users
-func (us *UserService) ListUsers(ctx context.Context, skip, limit uint64) ([]domain.User, error) {
-	var users []domain.User
+func (us *UserService) ListUsers(ctx context.Context, skip, limit uint64, filters domain.UserFilters) ([]domain.User, error) {
+    var users []domain.User
 
-	params := util.GenerateCacheKeyParams(skip, limit)
-	cacheKey := util.GenerateCacheKey("users", params)
+    // Include filters in cache key
+    params := util.GenerateCacheKeyParams(skip, limit, filters)
+    cacheKey := util.GenerateCacheKey("users", params)
 
-	cachedUsers, err := us.cache.Get(ctx, cacheKey)
-	if err == nil {
-		err := util.Deserialize(cachedUsers, &users)
-		if err != nil {
-			return nil, domain.ErrInternal
-		}
-		return users, nil
-	}
+    // Try cache first
+    cachedUsers, err := us.cache.Get(ctx, cacheKey)
+    if err == nil {
+        err := util.Deserialize(cachedUsers, &users)
+        if err != nil {
+            slog.Error("cache deserialization failed", "error", err)
+            // Fall through to database query
+        } else {
+            return users, nil
+        }
+    }
 
-	users, err = us.repo.ListUsers(ctx, skip, limit)
-	if err != nil {
-		return nil, domain.ErrInternal
-	}
+    // Cache miss - query database
+    users, err = us.repo.ListUsers(ctx, skip, limit, filters)
+    if err != nil {
+        return nil, domain.ErrInternal
+    }
 
-	usersSerialized, err := util.Serialize(users)
-	if err != nil {
-		return nil, domain.ErrInternal
-	}
+    // Cache results
+    usersSerialized, err := util.Serialize(users)
+    if err != nil {
+        slog.Error("serialization failed", "error", err)
+        return users, nil // Return results without caching
+    }
 
-	err = us.cache.Set(ctx, cacheKey, usersSerialized, 0)
-	if err != nil {
-		return nil, domain.ErrInternal
-	}
+    if err := us.cache.Set(ctx, cacheKey, usersSerialized, 10*time.Minute); err != nil {
+        slog.Error("cache set failed", "error", err)
+    }
 
-	return users, nil
+    return users, nil
 }
 
 // UpdateUser updates a user's name, email, and password
