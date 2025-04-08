@@ -3,6 +3,7 @@ package http
 import (
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
+	"log/slog"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -75,38 +76,65 @@ func (uh *UserHandler) Register(ctx *gin.Context) {
 
 // listUsersRequest represents the request body for listing users
 type listUsersRequest struct {
-	Skip  uint64 `form:"skip" binding:"required,min=0" example:"0"`
-	Limit uint64 `form:"limit" binding:"required,min=5" example:"5"`
+    Skip    uint64             `form:"skip" binding:"min=0" example:"0"`
+    Limit   uint64             `form:"limit" binding:"required,min=1" example:"5"`
+    Filters userFiltersRequest `form:"filters"`
+}
+
+// userFiltersRequest represents the filter criteria for listing users
+type userFiltersRequest struct {
+    Name           string `form:"name" example:"John"`
+    LastName       string `form:"lastName" example:"Doe"`
+    SecondLastName string `form:"secondLastName" example:"Smith"`
+    Role           string `form:"role" validate:"omitempty,oneof=admin client" example:"client" enums:"admin,client"`
 }
 
 // ListUsers godoc
 //
 //	@Summary		List users
-//	@Description	List users with pagination
+//	@Description	List users with pagination and filtering
 //	@Tags			Users
 //	@Accept			json
 //	@Produce		json
-//	@Param			skip	query		uint64			true	"Skip"
-//	@Param			limit	query		uint64			true	"Limit"
-//	@Success		200		{object}	meta			"Users displayed"
-//	@Failure		400		{object}	errorResponse	"Validation error"
-//	@Failure		500		{object}	errorResponse	"Internal server error"
+//	@Param			skip		query		uint64				false	"Skip"	default(0)
+//	@Param			limit		query		uint64				false	"Limit"	default(10)
+//	@Param			filters		query		userFiltersRequest	false	"Filters"
+//	@Success		200			{object}	meta				"Users displayed"
+//	@Failure		400			{object}	errorResponse		"Validation error"
+//	@Failure		500			{object}	errorResponse		"Internal server error"
 //	@Router			/users [get]
 //	@Security		BearerAuth
 func (uh *UserHandler) ListUsers(ctx *gin.Context) {
-	var req listUsersRequest
-	var usersList []userResponse
+  var req listUsersRequest
+  var usersList []userResponse
 
-	if err := ctx.ShouldBindQuery(&req); err != nil {
-		validationError(ctx, err)
-		return
-	}
+  // First bind the basic parameters
+  if err := ctx.ShouldBindQuery(&req); err != nil {
+    validationError(ctx, err)
+    return
+  }
 
-	users, err := uh.svc.ListUsers(ctx, req.Skip, req.Limit)
-	if err != nil {
-		handleError(ctx, err)
-		return
-	}
+  // Manually extract filter parameters
+  filters := domain.UserFilters{
+    Name:           ctx.Query("filters.name"),
+    LastName:       ctx.Query("filters.lastName"),
+    SecondLastName: ctx.Query("filters.secondLastName"),
+    Role:           domain.UserRole(ctx.Query("filters.role")),
+  }
+
+  // Debug output
+  slog.Info("Filter parameters",
+    "name", filters.Name,
+    "lastName", filters.LastName,
+    "role", filters.Role,
+    "rawQuery", ctx.Request.URL.RawQuery,
+  )
+
+  users, err := uh.svc.ListUsers(ctx, req.Skip, req.Limit, filters)
+  if err != nil {
+    handleError(ctx, err)
+    return
+  }
 
 	for _, user := range users {
 		usersList = append(usersList, newUserResponse(&user))
@@ -163,7 +191,7 @@ type updateUserRequest struct {
 	SecondLastName string          `json:"name" binding:"omitempty,required" example:"John Doe"`
 	Email          string          `json:"email" binding:"omitempty,required,email" example:"test@example.com"`
 	Password       string          `json:"password" binding:"omitempty,required,min=8" example:"12345678"`
-  Role     domain.UserRole `json:"role" binding:"omitempty,required,user_role" example:"admin"`
+  Role     domain.UserRole       `json:"role" binding:"omitempty,required,user_role" example:"admin"`
 }
 
 // UpdateUser godoc
