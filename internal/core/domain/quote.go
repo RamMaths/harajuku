@@ -9,6 +9,10 @@ import (
 // QuoteState is an enum for the state of a quote
 type QuoteState string
 
+func (q QuoteState) String() string {
+	return string(q)
+}
+
 // QuoteState enum values
 const (
 	QuotePending       QuoteState = "pending"
