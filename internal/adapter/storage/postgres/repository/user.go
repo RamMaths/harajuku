@@ -155,7 +155,7 @@ func (ur *UserRepository) ListUsers(ctx context.Context, skip, limit uint64, fil
     }
 
     // Debug logging - crucial for troubleshooting
-    slog.Log(ctx, slog.LevelInfo.Level(), "Executing query", 
+    slog.DebugContext(ctx, "Executing query", 
         "sql", sql, 
         "args", args,
         "filters", filters)
