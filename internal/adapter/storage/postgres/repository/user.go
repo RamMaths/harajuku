@@ -4,6 +4,7 @@ import (
 	"context"
 	"harajuku/backend/internal/adapter/storage/postgres"
 	"harajuku/backend/internal/core/domain"
+	"log/slog"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -123,46 +124,66 @@ func (ur *UserRepository) GetUserByEmail(ctx context.Context, email string) (*do
 	return &user, nil
 }
 
-// ListUsers lists all users from the database
-func (ur *UserRepository) ListUsers(ctx context.Context, skip, limit uint64) ([]domain.User, error) {
-	var user domain.User
-	var users []domain.User
+// ListUsers lists users from the database with optional filters
+func (ur *UserRepository) ListUsers(ctx context.Context, skip, limit uint64, filters domain.UserFilters) ([]domain.User, error) {
+    var user domain.User
+    var users []domain.User
 
-	query := ur.db.QueryBuilder.Select("*").
-		From("users").
-		OrderBy("id").
-		Limit(limit).
-		Offset((skip - 1) * limit)
+    query := ur.db.QueryBuilder.Select("*").
+        From("users").
+        OrderBy("id").
+        Limit(limit).
+        Offset((skip - 1) * limit)
 
-	sql, args, err := query.ToSql()
-	if err != nil {
-		return nil, err
-	}
+    // Add filters if they are provided
+    if filters.Name != "" {
+        query = query.Where(sq.ILike{"name": "%" + filters.Name + "%"})
+    }
+    if filters.LastName != "" {
+        query = query.Where(sq.ILike{`"lastName"`: "%" + filters.LastName + "%"})
+    }
+    if filters.SecondLastName != "" {
+        query = query.Where(sq.ILike{`"secondLastName"`: "%" + filters.SecondLastName + "%"})
+    }
+    if filters.Role != "" {
+        query = query.Where(sq.Eq{"role": filters.Role})
+    }
 
-	rows, err := ur.db.Query(ctx, sql, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+    sql, args, err := query.ToSql()
+    if err != nil {
+        return nil, err
+    }
 
-	for rows.Next() {
-		err := rows.Scan(
-        &user.ID,
-        &user.Name,
-        &user.LastName,
-        &user.SecondLastName,
-        &user.Email,
-        &user.Password,
-        &user.Role,
-		)
-		if err != nil {
-			return nil, err
-		}
+    // Debug logging - crucial for troubleshooting
+    slog.DebugContext(ctx, "Executing query", 
+        "sql", sql, 
+        "args", args,
+        "filters", filters)
 
-		users = append(users, user)
-	}
+    rows, err := ur.db.Query(ctx, sql, args...)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
 
-	return users, nil
+    for rows.Next() {
+        err := rows.Scan(
+            &user.ID,
+            &user.Name,
+            &user.LastName,
+            &user.SecondLastName,
+            &user.Email,
+            &user.Password,
+            &user.Role,
+        )
+        if err != nil {
+            return nil, err
+        }
+
+        users = append(users, user)
+    }
+
+    return users, nil
 }
 
 // UpdateUser updates a user by ID in the database
