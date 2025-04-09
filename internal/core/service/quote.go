@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -19,19 +20,28 @@ import (
  */
 type QuoteService struct {
 	repo  port.QuoteRepository
+  file port.FileRepository
+  user port.UserRepository
+  email port.EmailRepository
 	cache port.CacheRepository
 }
 
 // NewQuoteService creates a new quote service instance
-func NewQuoteService(repo port.QuoteRepository, cache port.CacheRepository) *QuoteService {
-	return &QuoteService{
+func NewQuoteService(repo port.QuoteRepository, file port.FileRepository, user port.UserRepository, email port.EmailRepository, cache port.CacheRepository) *QuoteService {
+	return &QuoteService {
 		repo,
+    file,
+    user,
+    email,
 		cache,
 	}
 }
 
 // Register creates a new quote
-func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote) (*domain.Quote, error) {
+func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote, file []byte, fileName string) (*domain.Quote, error) {
+
+  // QuoteRepository
+
   quote, err := us.repo.CreateQuote(ctx, quote)
 
 	if err != nil {
@@ -41,6 +51,8 @@ func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote) (*
 		}
 		return nil, domain.ErrInternal
 	}
+
+  // Cache
 
 	cacheKey := util.GenerateCacheKey("quote", quote.ID)
 	quoteSerialized, err := util.Serialize(quote)
@@ -57,6 +69,48 @@ func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote) (*
 	if err != nil {
 		return nil, domain.ErrInternal
 	}
+
+  // Handle File Saving
+
+  _, err = us.file.Save(ctx, file, fileName)
+
+  if err != nil {
+    return nil, domain.ErrInternal
+  }
+
+  // QuoteImage Repository
+
+  // Send email
+
+  emails, err := us.user.GetAdminsEmails(ctx)
+
+  if err != nil {
+    return nil, domain.ErrInternal
+  }
+
+  client, err := us.user.GetUserByID(ctx, quote.ClientID)
+
+  err = us.email.SendEmail(
+    ctx,
+    emails,
+    "Se ha creado una nueva cotización",
+    fmt.Sprintf(
+      "Una nueva cotización se ha creado\n\t\tid: %s\n\t\tDescripción: %s\n\t\tCliente: %s %s",
+      quote.ID.String(),
+      quote.Description,
+      client.Name,
+      client.LastName,
+    ),
+    "",
+  )
+
+  if err != nil {
+    // Log detailed error and continue since email failure doesn't block quote creation
+    slog.Error("failed to send email notification for quote %s: %v", quote.ID.String(), err)
+    return nil, domain.ErrInternal
+  }
+
+  // Return the new quote
 
 	return quote, nil
 }

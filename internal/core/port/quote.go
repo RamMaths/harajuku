@@ -27,7 +27,7 @@ type QuoteRepository interface {
 // QuoteService is an interface for interacting with quote-related business logic
 type QuoteService interface {
 	// Creates a new quote
-	CreateQuote(ctx context.Context, quote *domain.Quote) (*domain.Quote, error)
+	CreateQuote(ctx context.Context, quote *domain.Quote, file []byte, fileName string) (*domain.Quote, error)
 	// GetQuote returns a quote by id
 	GetQuote(ctx context.Context, id uuid.UUID) (*domain.Quote, error)
 	// ListQuotes returns a list of quotes with pagination
