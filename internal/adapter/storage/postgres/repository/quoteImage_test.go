@@ -84,7 +84,10 @@ func TestGetQuoteImages(t *testing.T) {
 	t.Logf("Fetching list of quote images")
 
 	filters := domain.QuoteImageFilters{
-		QuoteID: nil,
+		QuoteID: func() *uuid.UUID {
+			id := uuid.MustParse("66d54352-e614-427c-bba5-7c8092a6147e")
+			return &id
+		}(),
 	}
 
 	quoteImages, err := repo.GetQuoteImages(ctx, 1, 10, filters)
