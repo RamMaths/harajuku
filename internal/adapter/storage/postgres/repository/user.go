@@ -16,46 +16,46 @@ import (
  * and provides an access to the postgres database
  */
 type UserRepository struct {
-    db *postgres.DB
+	db *postgres.DB
 }
 
 // NewUserRepository creates a new user repository instance
 func NewUserRepository(db *postgres.DB) *UserRepository {
-    return &UserRepository{
-        db,
-    }
+	return &UserRepository{
+		db,
+	}
 }
 
 // CreateUser creates a new user in the database
 func (ur *UserRepository) CreateUser(ctx context.Context, user *domain.User) (*domain.User, error) {
-    query := ur.db.QueryBuilder.Insert("users").
-    Columns("id", "name", `"lastName"`, `"secondLastName"`, "email", "password"). // Use quoted identifiers
-    Values(user.ID, user.Name, user.LastName, user.SecondLastName, user.Email, user.Password).
-    Suffix("RETURNING *")
+	query := ur.db.QueryBuilder.Insert("users").
+		Columns("id", "name", `"lastName"`, `"secondLastName"`, "email", "password"). // Use quoted identifiers
+		Values(user.ID, user.Name, user.LastName, user.SecondLastName, user.Email, user.Password).
+		Suffix("RETURNING *")
 
-    sql, args, err := query.ToSql()
-    if err != nil {
-        return nil, err
-    }
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
 
-    err = ur.db.QueryRow(ctx, sql, args...).Scan(
-        &user.ID,
-        &user.Name,
-        &user.LastName,
-        &user.SecondLastName,
-        &user.Email,
-        &user.Password,
-        &user.Role,
-    )
+	err = ur.db.QueryRow(ctx, sql, args...).Scan(
+		&user.ID,
+		&user.Name,
+		&user.LastName,
+		&user.SecondLastName,
+		&user.Email,
+		&user.Password,
+		&user.Role,
+	)
 
-    if err != nil {
-        if errCode := ur.db.ErrorCode(err); errCode == "23505" {
-            return nil, domain.ErrConflictingData
-        }
-        return nil, err
-    }
+	if err != nil {
+		if errCode := ur.db.ErrorCode(err); errCode == "23505" {
+			return nil, domain.ErrConflictingData
+		}
+		return nil, err
+	}
 
-    return user, nil
+	return user, nil
 }
 
 // GetUserByID gets a user by ID from the database
@@ -79,7 +79,7 @@ func (ur *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*domai
 		&user.SecondLastName,
 		&user.Email,
 		&user.Password,
-    &user.Role,
+		&user.Role,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -106,13 +106,13 @@ func (ur *UserRepository) GetUserByEmail(ctx context.Context, email string) (*do
 	}
 
 	err = ur.db.QueryRow(ctx, sql, args...).Scan(
-    &user.ID,
-    &user.Name,
-    &user.LastName,
-    &user.SecondLastName,
-    &user.Email,
-    &user.Password,
-    &user.Role,
+		&user.ID,
+		&user.Name,
+		&user.LastName,
+		&user.SecondLastName,
+		&user.Email,
+		&user.Password,
+		&user.Role,
 	)
 	if err != nil {
 		if err == pgx.ErrNoRows {
@@ -126,64 +126,64 @@ func (ur *UserRepository) GetUserByEmail(ctx context.Context, email string) (*do
 
 // ListUsers lists users from the database with optional filters
 func (ur *UserRepository) ListUsers(ctx context.Context, skip, limit uint64, filters domain.UserFilters) ([]domain.User, error) {
-    var user domain.User
-    var users []domain.User
+	var user domain.User
+	var users []domain.User
 
-    query := ur.db.QueryBuilder.Select("*").
-        From("users").
-        OrderBy("id").
-        Limit(limit).
-        Offset((skip - 1) * limit)
+	query := ur.db.QueryBuilder.Select("*").
+		From("users").
+		OrderBy("id").
+		Limit(limit).
+		Offset((skip - 1) * limit)
 
-    // Add filters if they are provided
-    if filters.Name != "" {
-        query = query.Where(sq.ILike{"name": "%" + filters.Name + "%"})
-    }
-    if filters.LastName != "" {
-        query = query.Where(sq.ILike{`"lastName"`: "%" + filters.LastName + "%"})
-    }
-    if filters.SecondLastName != "" {
-        query = query.Where(sq.ILike{`"secondLastName"`: "%" + filters.SecondLastName + "%"})
-    }
-    if filters.Role != "" {
-        query = query.Where(sq.Eq{"role": filters.Role})
-    }
+	// Add filters if they are provided
+	if filters.Name != "" {
+		query = query.Where(sq.ILike{"name": "%" + filters.Name + "%"})
+	}
+	if filters.LastName != "" {
+		query = query.Where(sq.ILike{`"lastName"`: "%" + filters.LastName + "%"})
+	}
+	if filters.SecondLastName != "" {
+		query = query.Where(sq.ILike{`"secondLastName"`: "%" + filters.SecondLastName + "%"})
+	}
+	if filters.Role != "" {
+		query = query.Where(sq.Eq{"role": filters.Role})
+	}
 
-    sql, args, err := query.ToSql()
-    if err != nil {
-        return nil, err
-    }
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
 
-    // Debug logging - crucial for troubleshooting
-    slog.DebugContext(ctx, "Executing query", 
-        "sql", sql, 
-        "args", args,
-        "filters", filters)
+	// Debug logging - crucial for troubleshooting
+	slog.DebugContext(ctx, "Executing query",
+		"sql", sql,
+		"args", args,
+		"filters", filters)
 
-    rows, err := ur.db.Query(ctx, sql, args...)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	rows, err := ur.db.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    for rows.Next() {
-        err := rows.Scan(
-            &user.ID,
-            &user.Name,
-            &user.LastName,
-            &user.SecondLastName,
-            &user.Email,
-            &user.Password,
-            &user.Role,
-        )
-        if err != nil {
-            return nil, err
-        }
+	for rows.Next() {
+		err := rows.Scan(
+			&user.ID,
+			&user.Name,
+			&user.LastName,
+			&user.SecondLastName,
+			&user.Email,
+			&user.Password,
+			&user.Role,
+		)
+		if err != nil {
+			return nil, err
+		}
 
-        users = append(users, user)
-    }
+		users = append(users, user)
+	}
 
-    return users, nil
+	return users, nil
 }
 
 // UpdateUser updates a user by ID in the database
@@ -193,7 +193,7 @@ func (ur *UserRepository) UpdateUser(ctx context.Context, user *domain.User) (*d
 	secondLastName := nullString(user.SecondLastName)
 	email := nullString(user.Email)
 	password := nullString(user.Password)
-  role := nullString(string(user.Role))
+	role := nullString(string(user.Role))
 
 	query := ur.db.QueryBuilder.Update("users").
 		Set("name", sq.Expr("COALESCE(?, name)", name)).
@@ -201,7 +201,7 @@ func (ur *UserRepository) UpdateUser(ctx context.Context, user *domain.User) (*d
 		Set(`"secondLastName"`, sq.Expr("COALESCE(?, name)", secondLastName)).
 		Set("email", sq.Expr("COALESCE(?, email)", email)).
 		Set("password", sq.Expr("COALESCE(?, password)", password)).
-    Set("role", sq.Expr("COALESCE(?, role)", role)).
+		Set("role", sq.Expr("COALESCE(?, role)", role)).
 		Where(sq.Eq{"id": user.ID}).
 		Suffix("RETURNING *")
 
@@ -211,13 +211,13 @@ func (ur *UserRepository) UpdateUser(ctx context.Context, user *domain.User) (*d
 	}
 
 	err = ur.db.QueryRow(ctx, sql, args...).Scan(
-    &user.ID,
-    &user.Name,
-    &user.LastName,
-    &user.SecondLastName,
-    &user.Email,
-    &user.Password,
-    &user.Role,
+		&user.ID,
+		&user.Name,
+		&user.LastName,
+		&user.SecondLastName,
+		&user.Email,
+		&user.Password,
+		&user.Role,
 	)
 	if err != nil {
 		if errCode := ur.db.ErrorCode(err); errCode == "23505" {
