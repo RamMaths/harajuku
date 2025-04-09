@@ -8,9 +8,9 @@ import (
 	"testing"
 )
 
-const URL = "https://sandbox.api.mailtrap.io/api/send/3148706"
-const API_TOKEN = "adc152cd9f7c489377b3729d84e6d8d7"
-const FROM_EMAIL = "ramsesmata@dagatech.solutions"
+const URL = ""
+const API_TOKEN = ""
+const FROM_EMAIL = ""
 
 func TestSendEmailIntegrationTest(t *testing.T) {
     ctx := context.Background()
