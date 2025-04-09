@@ -18,6 +18,8 @@ type UserRepository interface {
 	GetUserByID(ctx context.Context, id uuid.UUID) (*domain.User, error)
 	// GetUserByEmail selects a user by email
 	GetUserByEmail(ctx context.Context, email string) (*domain.User, error)
+  // GetAdminsEmail returns an array containing all the emails of amdmin users
+  GetAdminsEmails(ctx context.Context) ([]string, error)
 	// ListUsers selects a list of users with pagination
   ListUsers(ctx context.Context, skip, limit uint64, filters domain.UserFilters) ([]domain.User, error)
 	// UpdateUser updates a user

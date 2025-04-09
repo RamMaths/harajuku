@@ -7,13 +7,18 @@ import (
 	"os"
 
 	paseto "harajuku/backend/internal/adapter/auth"
+	"harajuku/backend/internal/adapter/communication/email"
 	"harajuku/backend/internal/adapter/config"
 	"harajuku/backend/internal/adapter/handler/http"
 	"harajuku/backend/internal/adapter/logger"
+	"harajuku/backend/internal/adapter/storage/awsS3"
 	"harajuku/backend/internal/adapter/storage/postgres"
 	"harajuku/backend/internal/adapter/storage/postgres/repository"
 	"harajuku/backend/internal/adapter/storage/redis"
 	"harajuku/backend/internal/core/service"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
 )
 
 func main() {
@@ -83,9 +88,26 @@ func main() {
 	authService := service.NewAuthService(userRepo, token)
 	authHandler := http.NewAuthHandler(authService)
 
+  // S3
+
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region: aws.String(config.AwsS3.Region),
+	}))
+
+  s3 := awsS3.NewAwsS3(sess, config.AwsS3.Bucket)
+
+  // Email
+
+  email, err := email.New(ctx, config.Email)
+
+  if err != nil {
+		slog.Error("Error initializing the email service", "error", err)
+		os.Exit(1)
+  }
+
 	// Quote
 	quoteRepo := postgres.NewQuoteRepository(db)
-	quoteService := service.NewQuoteService(quoteRepo, cache)
+	quoteService := service.NewQuoteService(quoteRepo, s3, userRepo, email, cache)
 	quoteHandler := http.NewQuoteHandler(quoteService)
 
 	// Init router

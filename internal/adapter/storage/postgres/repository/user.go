@@ -124,6 +124,41 @@ func (ur *UserRepository) GetUserByEmail(ctx context.Context, email string) (*do
 	return &user, nil
 }
 
+// GetAdminsEmail returns an array containing all the emails of amdmin users
+func (ur *UserRepository) GetAdminsEmails(ctx context.Context) ([]string, error) {
+    var email string
+    var emails []string
+
+    query := ur.db.QueryBuilder.Select("email").
+        From("users").
+        OrderBy("id").
+        Where(sq.Eq{"role": "admin",})
+
+    sql, args, err := query.ToSql()
+    if err != nil {
+        return nil, err
+    }
+
+    rows, err := ur.db.Query(ctx, sql, args...)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        err := rows.Scan(
+            &email,
+        )
+        if err != nil {
+            return nil, err
+        }
+
+        emails = append(emails, email)
+    }
+
+    return emails, nil
+}
+
 // ListUsers lists users from the database with optional filters
 func (ur *UserRepository) ListUsers(ctx context.Context, skip, limit uint64, filters domain.UserFilters) ([]domain.User, error) {
     var user domain.User

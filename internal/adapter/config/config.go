@@ -15,6 +15,7 @@ type (
 		DB    *DB
 		HTTP  *HTTP
     Email *Email
+    AwsS3 *AwsS3
 	}
 	// App contains all the environment variables for the application
 	App struct {
@@ -51,6 +52,11 @@ type (
     Url string
     ApiToken string
     FromEmail string
+  }
+
+  AwsS3 struct {
+    Bucket string
+    Region string
   }
 )
 
@@ -98,6 +104,11 @@ func New() (*Container, error) {
 		ApiToken:       os.Getenv("EMAIL_API_TOKEN"),
 		FromEmail:      os.Getenv("FROM_EMAIL"),
 	}
+  
+  awsS3 := &AwsS3{
+    Bucket: os.Getenv("AWS_S3_BUCKET_NAME"),
+    Region: os.Getenv("AWS_S3_REGION"),
+  }
 
 	return &Container{
 		app,
@@ -106,5 +117,6 @@ func New() (*Container, error) {
 		db,
 		http,
     email,
+    awsS3,
 	}, nil
 }
