@@ -105,6 +105,8 @@ func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote, fi
   )
 
   if err != nil {
+    // Log detailed error and continue since email failure doesn't block quote creation
+    slog.Error("failed to send email notification for quote %s: %v", quote.ID.String(), err)
     return nil, domain.ErrInternal
   }
 
