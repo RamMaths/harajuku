@@ -5,6 +5,5 @@ import (
 )
 
 type EmailRepository interface {
-	// Set stores the value in the cache
-	SendEmail(ctx context.Context, from string, to string, subject string, content string) error
+	SendEmail(ctx context.Context, to[] string, subjects string, textContent string, htmlContent string) error
 }

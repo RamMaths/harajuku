@@ -14,6 +14,7 @@ type (
 		Redis *Redis
 		DB    *DB
 		HTTP  *HTTP
+    Email *Email
 	}
 	// App contains all the environment variables for the application
 	App struct {
@@ -45,6 +46,12 @@ type (
 		Port           string
 		AllowedOrigins string
 	}
+
+  Email struct {
+    Url string
+    ApiToken string
+    FromEmail string
+  }
 )
 
 // New creates a new container instance
@@ -86,11 +93,18 @@ func New() (*Container, error) {
 		AllowedOrigins: os.Getenv("HTTP_ALLOWED_ORIGINS"),
 	}
 
+	email := &Email{
+		Url:            os.Getenv("EMAIL_URL"),
+		ApiToken:       os.Getenv("EMAIL_API_TOKEN"),
+		FromEmail:      os.Getenv("FROM_EMAIL"),
+	}
+
 	return &Container{
 		app,
 		token,
 		redis,
 		db,
 		http,
+    email,
 	}, nil
 }
