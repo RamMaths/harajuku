@@ -45,33 +45,35 @@ func newMeta(total, limit, skip uint64) meta {
 
 // authResponse represents an authentication response body
 type authResponse struct {
-	AccessToken string `json:"token" example:"v2.local.Gdh5kiOTyyaQ3_bNykYDeYHO21Jg2..."`
+	AccessToken string          `json:"token" example:"v2.local.Gdh5kiOTyyaQ3_bNykYDeYHO21Jg2..."`
+	Role        domain.UserRole `json:"role" example:"client"`
 }
 
 // newAuthResponse is a helper function to create a response body for handling authentication data
-func newAuthResponse(token string) authResponse {
+func newAuthResponse(token string, role domain.UserRole) authResponse {
 	return authResponse{
 		AccessToken: token,
+		Role:        role,
 	}
 }
 
 // userResponse represents a user response body
 type userResponse struct {
-	ID                  uuid.UUID `json:"id" example:"1"`
-	Name                string    `json:"name" example:"Juan"`
-	LastName            string    `json:"lastName" example:"Pérez"`
-	secondLastname      string    `json:"secondLastName" example:"Hernández"`
-	Email               string    `json:"email" example:"test@example.com"`
+	ID             uuid.UUID `json:"id" example:"1"`
+	Name           string    `json:"name" example:"Juan"`
+	LastName       string    `json:"lastName" example:"Pérez"`
+	secondLastname string    `json:"secondLastName" example:"Hernández"`
+	Email          string    `json:"email" example:"test@example.com"`
 }
 
 // newUserResponse is a helper function to create a response body for handling user data
 func newUserResponse(user *domain.User) userResponse {
 	return userResponse{
-		ID:        user.ID,
-		Name:      user.Name,
-		LastName:      user.LastName,
-		secondLastname:      user.SecondLastName,
-		Email:     user.Email,
+		ID:             user.ID,
+		Name:           user.Name,
+		LastName:       user.LastName,
+		secondLastname: user.SecondLastName,
+		Email:          user.Email,
 	}
 }
 
