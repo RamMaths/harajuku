@@ -124,7 +124,7 @@ func (ur *UserRepository) GetUserByEmail(ctx context.Context, email string) (*do
 	return &user, nil
 }
 
-// GetAdminsEmail returns an array containing all the emails of amdmin users
+ // GetAdminsEmail returns an array containing all the emails of admin users
 func (ur *UserRepository) GetAdminsEmails(ctx context.Context) ([]string, error) {
     var email string
     var emails []string
