@@ -76,7 +76,7 @@ func NewRouter(
 			}
 		}
 
-		quote := v1.Group("/quotes")
+		quote := v1.Group("/quotes").Use(authMiddleware(token))
 		{
 			quote.POST("/", quoteHandler.CreateQuote)
 			quote.GET("all/", quoteHandler.ListQuotes)
