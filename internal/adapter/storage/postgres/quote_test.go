@@ -2,23 +2,34 @@ package postgres_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
 	"harajuku/backend/internal/adapter/storage/postgres"
 	"harajuku/backend/internal/core/domain"
 
+	"github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq"
 )
 
-func setupTestDB(t *testing.T) *sql.DB {
-	db, err := sql.Open("postgres", "postgres://postgres:123@127.0.0.1:5432/harajuku?sslmode=disable")
+func setupTestDB(t *testing.T) *postgres.DB {
+	// Aquí estableces la conexión con la base de datos
+	connConfig := "postgres://postgres:123@127.0.0.1:5432/harajuku?sslmode=disable"
+	pool, err := pgxpool.New(context.Background(), connConfig)
 	if err != nil {
 		t.Fatalf("failed to connect to db: %v", err)
 	}
-	return db
+
+	// Inicializa el QueryBuilder usando squirrel
+	psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+
+	// Crea y devuelve una instancia de postgres.DB
+	return &postgres.DB{
+		Pool:         pool,
+		QueryBuilder: &psql,
+	}
 }
 
 func TestCreateQuote(t *testing.T) {
@@ -56,7 +67,7 @@ func TestGetQuoteByID(t *testing.T) {
 	repo := postgres.NewQuoteRepository(db)
 	ctx := context.Background()
 
-	id := uuid.MustParse("ba040759-f58a-47f6-ba01-c77029fb35e6")
+	id := uuid.MustParse("a2ef0527-1616-4c00-a466-9dfce3d66787")
 
 	t.Logf("Fetching quote with ID: %v", id)
 
@@ -75,7 +86,7 @@ func TestListQuotes(t *testing.T) {
 
 	t.Logf("Fetching list of quotes")
 
-	quotes, err := repo.ListQuotes(ctx, 0, 10)
+	quotes, err := repo.ListQuotes(ctx, 1, 10)
 	if err != nil {
 		t.Fatalf("ListQuotes failed: %v", err)
 	}
@@ -125,7 +136,7 @@ func TestDeleteQuote(t *testing.T) {
 	repo := postgres.NewQuoteRepository(db)
 	ctx := context.Background()
 
-	id := uuid.MustParse("ba040759-f58a-47f6-ba01-c77029fb35e6")
+	id := uuid.MustParse("8b985a40-00de-454b-9c7d-029526f80fe9")
 
 	t.Logf("Deleting quote with ID: %v", id)
 	err := repo.DeleteQuote(ctx, id)

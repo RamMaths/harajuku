@@ -1,8 +1,10 @@
 package http
 
 import (
+	"fmt"
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -143,9 +145,9 @@ func (qh *QuoteHandler) ListQuotes(ctx *gin.Context) {
 }
 
 // getQuoteRequest representa el cuerpo de la solicitud para obtener una cotización por ID
-type getQuoteRequest struct {
-	ID uuid.UUID `uri:"id" binding:"required,min=1"`
-}
+//type getQuoteRequest struct {
+//	ID string `form:"id" binding:"required"`
+//}
 
 // GetQuote godoc
 //
@@ -154,36 +156,47 @@ type getQuoteRequest struct {
 //	@Tags			Quotes
 //	@Accept			json
 //	@Produce		json
-//	@Param			id	path		uint64			true	"Quote ID"
+//	@Param			id	query		string		true	"Quote ID"
 //	@Success		200	{object}	quoteResponse	"Quote displayed"
 //	@Failure		400	{object}	errorResponse	"Validation error"
 //	@Failure		404	{object}	errorResponse	"Data not found error"
 //	@Failure		500	{object}	errorResponse	"Internal server error"
-//	@Router			/quotes/{id} [get]
+//	@Router			/quotes [get]
 func (qh *QuoteHandler) GetQuote(ctx *gin.Context) {
-	var req getQuoteRequest
-	if err := ctx.ShouldBindUri(&req); err != nil {
-		validationError(ctx, err)
+	id := ctx.DefaultQuery("id", "")
+
+	if id == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID parameter is required"})
 		return
 	}
 
-	quote, err := qh.svc.GetQuote(ctx, req.ID)
+	quoteID, err := uuid.Parse(id)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+
+	// Llamar al servicio para obtener la cotización
+	quote, err := qh.svc.GetQuote(ctx, quoteID)
 	if err != nil {
 		handleError(ctx, err)
 		return
 	}
 
+	// Responder con la cotización
 	rsp := newQuoteResponse(quote)
-
 	handleSuccess(ctx, rsp)
 }
 
 // updateQuoteRequest representa el cuerpo de la solicitud para actualizar una cotización
 type updateQuoteRequest struct {
-	Description  string  `json:"description" binding:"omitempty,required"`
-	State        string  `json:"state" binding:"omitempty,required,oneof=pending approved rejected requires_proof"`
-	Price        float64 `json:"price" binding:"omitempty,required"`
-	TestRequired bool    `json:"testRequired" binding:"omitempty,required"`
+	TypeOfServiceID uuid.UUID         `json:"typeOfServiceId" binding:"required"`
+	ClientID        uuid.UUID         `json:"clientId" binding:"required"`
+	Time            time.Time         `json:"time" binding:"required"`
+	Description     string            `json:"description" binding:"required"`
+	State           domain.QuoteState `json:"state" binding:"required"`
+	Price           float64           `json:"price" binding:"required"`
+	TestRequired    bool              `json:"testRequired" binding:"required"`
 }
 
 // UpdateQuote godoc
@@ -193,49 +206,63 @@ type updateQuoteRequest struct {
 //	@Tags			Quotes
 //	@Accept			json
 //	@Produce		json
-//	@Param			id					path		uint64				true	"Quote ID"
-//	@Param			updateQuoteRequest	body		updateQuoteRequest	true	"Update quote request"
-//	@Success		200					{object}	quoteResponse		"Quote updated"
-//	@Failure		400					{object}	errorResponse		"Validation error"
-//	@Failure		500					{object}	errorResponse		"Internal server error"
-//	@Router			/quotes/{id} [put]
+//
+// @Param         id     query   string        true   "Quote ID"
+// @Param         quote  body    updateQuoteRequest   true   "Quote Data" (sin el ID)
+//
+//	@Success		200	{object}	quoteResponse	"Quote updated"
+//	@Failure		400	{object}	errorResponse	"Validation error"
+//	@Failure		404	{object}	errorResponse	"Data not found error"
+//	@Failure		500	{object}	errorResponse	"Internal server error"
+//	@Router			/quotes [put]
 func (qh *QuoteHandler) UpdateQuote(ctx *gin.Context) {
+	id := ctx.DefaultQuery("id", "")
+
+	if id == "" {
+		validationError(ctx, fmt.Errorf("ID is required"))
+		return
+	}
+
+	// Inicializar la estructura para la solicitud
 	var req updateQuoteRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		validationError(ctx, err)
 		return
 	}
 
-	idStr := ctx.Param("id")
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		validationError(ctx, err)
+	// Validar que el estado es válido
+	if !req.State.IsValidState() {
+		validationError(ctx, fmt.Errorf("invalid state"))
 		return
 	}
 
-	quote := domain.Quote{
-		ID:           id,
-		Description:  req.Description,
-		State:        domain.QuoteState(req.State),
-		Price:        req.Price,
-		TestRequired: req.TestRequired,
+	// Llamar al servicio para actualizar la cotización
+	quote := &domain.Quote{
+		ID:              uuid.MustParse(id),
+		TypeOfServiceID: req.TypeOfServiceID,
+		ClientID:        req.ClientID,
+		Time:            req.Time,
+		Description:     req.Description,
+		State:           req.State,
+		Price:           req.Price,
+		TestRequired:    req.TestRequired,
 	}
 
-	updatedQuote, err := qh.svc.UpdateQuote(ctx, &quote)
+	_, err := qh.svc.UpdateQuote(ctx, quote)
 	if err != nil {
 		handleError(ctx, err)
 		return
 	}
 
-	rsp := newQuoteResponse(updatedQuote)
-
+	// Responder con el resultado
+	rsp := newQuoteResponse(quote)
 	handleSuccess(ctx, rsp)
 }
 
 // deleteQuoteRequest representa el cuerpo de la solicitud para eliminar una cotización
-type deleteQuoteRequest struct {
-	ID uuid.UUID `uri:"id" binding:"required,min=1"`
-}
+//type deleteQuoteRequest struct {
+//	ID uuid.UUID `query:"id" binding:"required"`
+//}
 
 // DeleteQuote godoc
 //
@@ -244,24 +271,33 @@ type deleteQuoteRequest struct {
 //	@Tags			Quotes
 //	@Accept			json
 //	@Produce		json
-//	@Param			id	path		uint64			true	"Quote ID"
-//	@Success		200	{object}	response		"Quote deleted"
+//
+// @Param         id   query   string         true   "Quote ID"
+//
+//	@Success		200	{object}	string		"Quote deleted successfully"
 //	@Failure		400	{object}	errorResponse	"Validation error"
 //	@Failure		404	{object}	errorResponse	"Data not found error"
 //	@Failure		500	{object}	errorResponse	"Internal server error"
-//	@Router			/quotes/{id} [delete]
+//	@Router			/quotes [delete]
 func (qh *QuoteHandler) DeleteQuote(ctx *gin.Context) {
-	var req deleteQuoteRequest
-	if err := ctx.ShouldBindUri(&req); err != nil {
-		validationError(ctx, err)
+	idStr := ctx.DefaultQuery("id", "")
+	if idStr == "" {
+		validationError(ctx, fmt.Errorf("ID is required"))
 		return
 	}
 
-	err := qh.svc.DeleteQuote(ctx, req.ID)
+	// Convertir el string a un UUID
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		validationError(ctx, fmt.Errorf("invalid UUID format"))
+		return
+	}
+
+	// Llamar al servicio para eliminar la cotización
+	err = qh.svc.DeleteQuote(ctx, id)
 	if err != nil {
 		handleError(ctx, err)
 		return
 	}
-
-	handleSuccess(ctx, nil)
+	handleSuccess(ctx, "Quote deleted successfully")
 }

@@ -83,12 +83,18 @@ func main() {
 	authService := service.NewAuthService(userRepo, token)
 	authHandler := http.NewAuthHandler(authService)
 
+	// Quote
+	quoteRepo := postgres.NewQuoteRepository(db)
+	quoteService := service.NewQuoteService(quoteRepo, cache)
+	quoteHandler := http.NewQuoteHandler(quoteService)
+
 	// Init router
 	router, err := http.NewRouter(
 		config.HTTP,
 		token,
 		*userHandler,
 		*authHandler,
+		*quoteHandler,
 	)
 
 	if err != nil {

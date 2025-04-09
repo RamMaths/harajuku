@@ -27,13 +27,14 @@ func NewRouter(
 	token port.TokenService,
 	userHandler UserHandler,
 	authHandler AuthHandler,
+	quoteHandler QuoteHandler,
 ) (*Router, error) {
 	// Disable debug mode in production
 	if config.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-  // Custom validators
+	// Custom validators
 	v, ok := binding.Validator.Engine().(*validator.Validate)
 	if ok {
 		if err := v.RegisterValidation("user_role", userRoleValidator); err != nil {
@@ -46,14 +47,14 @@ func NewRouter(
 	allowedOrigins := config.AllowedOrigins
 	originsList := strings.Split(allowedOrigins, ",")
 	ginConfig.AllowOrigins = originsList
-  ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Authorization")
-  ginConfig.AllowCredentials = true
+	ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Authorization")
+	ginConfig.AllowCredentials = true
 
-  // In case we need more geaders
-  //ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Content-Type", "X-Requested-With")
+	// In case we need more geaders
+	//ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Content-Type", "X-Requested-With")
 
-  // You might need other headers too
-  ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Content-Type", "X-Requested-With")
+	// You might need other headers too
+	ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Content-Type", "X-Requested-With")
 
 	router := gin.New()
 	router.Use(sloggin.New(slog.Default()), gin.Recovery(), cors.New(ginConfig))
@@ -73,6 +74,15 @@ func NewRouter(
 				authUser.GET("/", userHandler.ListUsers)
 				authUser.GET("/:id", userHandler.GetUser)
 			}
+		}
+
+		quote := v1.Group("/quotes")
+		{
+			quote.POST("/", quoteHandler.CreateQuote)
+			quote.GET("all/", quoteHandler.ListQuotes)
+			quote.GET("/", quoteHandler.GetQuote)
+			quote.PUT("/", quoteHandler.UpdateQuote)
+			quote.DELETE("/", quoteHandler.DeleteQuote)
 		}
 	}
 
