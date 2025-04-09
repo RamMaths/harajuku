@@ -54,7 +54,6 @@ type createQuoteRequest struct {
 	TypeOfServiceID uuid.UUID `json:"typeOfServiceID" binding:"required"`
 	ClientID        uuid.UUID `json:"clientID" binding:"required"`
 	Description     string    `json:"description" binding:"required"`
-	State           string    `json:"state" binding:"required,oneof=pending approved rejected requires_proof"`
 	Price           float64   `json:"price" binding:"required"`
 	TestRequired    bool      `json:"testRequired" binding:"required"`
 }
@@ -84,7 +83,7 @@ func (qh *QuoteHandler) CreateQuote(ctx *gin.Context) {
 		ClientID:        req.ClientID,
 		Time:            time.Now(),
 		Description:     req.Description,
-		State:           domain.QuoteState(req.State),
+		State:           "pending",
 		Price:           req.Price,
 		TestRequired:    req.TestRequired,
 	}
