@@ -53,7 +53,6 @@ func newQuoteResponse(q *domain.Quote) *quoteResponse {
 // createQuoteRequest representa el cuerpo de la solicitud para crear una cotización
 type createQuoteRequest struct {
 	TypeOfServiceID string    `form:"typeOfServiceID" binding:"required"`
-	ClientID        string    `form:"clientID" binding:"required"`
 	Description     string    `form:"description" binding:"required"`
 }
 
@@ -65,74 +64,76 @@ type createQuoteRequest struct {
 // @Accept         multipart/form-data
 // @Produce        json
 // @Param          typeOfServiceID  formData  string  true  "Type of Service ID (UUID format)"
-// @Param          clientID         formData  string  true  "Client ID (UUID format)"
 // @Param          description      formData  string  true  "Description"
-// @Param          price            formData  number  true  "Price"
 // @Param          file             formData  file    true  "Attachment file"
 // @Success        200              {object}  quoteResponse  "Quote created"
 // @Failure        400              {object}  errorResponse  "Validation error"
 // @Failure        500              {object}  errorResponse  "Internal server error"
 // @Router         /quotes [post]
 func (qh *QuoteHandler) CreateQuote(ctx *gin.Context) {
-// Parse multipart form
-    if err := ctx.Request.ParseMultipartForm(10 << 20); err != nil {
-        validationError(ctx, fmt.Errorf("failed to parse multipart form: %v", err))
-        return
-    }
+  // Get user ID from auth token
+  authPayload := getAuthPayload(ctx, authorizationPayloadKey)
 
-    // Bind the form data
-    var req createQuoteRequest
-    if err := ctx.ShouldBind(&req); err != nil {
-        validationError(ctx, err)
-        return
-    }
+  if authPayload == nil {
+    handleError(ctx, domain.ErrUnauthorized)
+    return
+  }
 
-    // Parse UUIDs
-    typeOfServiceID, err := uuid.Parse(req.TypeOfServiceID)
-    if err != nil {
-        validationError(ctx, fmt.Errorf("invalid typeOfServiceID format"))
-        return
-    }
+  userID := authPayload.UserID
 
-    clientID, err := uuid.Parse(req.ClientID)
-    if err != nil {
-        validationError(ctx, fmt.Errorf("invalid clientID format"))
-        return
-    }
+  // Parse multipart form
+  if err := ctx.Request.ParseMultipartForm(10 << 20); err != nil {
+    validationError(ctx, fmt.Errorf("failed to parse multipart form: %v", err))
+    return
+  }
 
-    // Get the file
-    file, fileHeader, err := ctx.Request.FormFile("file")
-    if err != nil {
-        validationError(ctx, fmt.Errorf("file is required: %v", err))
-        return
-    }
-    defer file.Close()
+  // Bind the form data
+  var req createQuoteRequest
+  if err := ctx.ShouldBind(&req); err != nil {
+    validationError(ctx, err)
+    return
+  }
 
-    fileBytes, err := io.ReadAll(file)
-    if err != nil {
-        handleError(ctx, fmt.Errorf("failed to read file: %v", err))
-        return
-    }
+  // Parse UUIDs
+  typeOfServiceID, err := uuid.Parse(req.TypeOfServiceID)
+  if err != nil {
+    validationError(ctx, fmt.Errorf("invalid typeOfServiceID format"))
+    return
+  }
 
-    quote := domain.Quote{
-        ID:              uuid.New(),
-        TypeOfServiceID: typeOfServiceID,
-        ClientID:        clientID,
-        Time:            time.Now(),
-        Description:     req.Description,
-        State:           "pending",
-        Price:           0,
-        TestRequired:    false,
-    }
+  // Get the file
+  file, fileHeader, err := ctx.Request.FormFile("file")
+  if err != nil {
+    validationError(ctx, fmt.Errorf("file is required: %v", err))
+    return
+  }
+  defer file.Close()
 
-    createdQuote, err := qh.svc.CreateQuote(ctx, &quote, fileBytes, fileHeader.Filename)
-    if err != nil {
-        handleError(ctx, err)
-        return
-    }
+  fileBytes, err := io.ReadAll(file)
+  if err != nil {
+    handleError(ctx, fmt.Errorf("failed to read file: %v", err))
+    return
+  }
 
-    rsp := newQuoteResponse(createdQuote)
-    handleSuccess(ctx, rsp)
+  quote := domain.Quote{
+    ID:              uuid.New(),
+    TypeOfServiceID: typeOfServiceID,
+    ClientID:        userID,
+    Time:            time.Now(),
+    Description:     req.Description,
+    State:           "pending",
+    Price:           0,
+    TestRequired:    false,
+  }
+
+  createdQuote, err := qh.svc.CreateQuote(ctx, &quote, fileBytes, fileHeader.Filename)
+  if err != nil {
+    handleError(ctx, err)
+    return
+  }
+
+  rsp := newQuoteResponse(createdQuote)
+  handleSuccess(ctx, rsp)
 }
 
 // listQuotesRequest representa los parámetros de la consulta para listar cotizaciones
