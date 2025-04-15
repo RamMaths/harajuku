@@ -23,16 +23,18 @@ type QuoteService struct {
   file port.FileRepository
   user port.UserRepository
   email port.EmailRepository
+  quoteImage port.QuoteImageRepository
 	cache port.CacheRepository
 }
 
 // NewQuoteService creates a new quote service instance
-func NewQuoteService(repo port.QuoteRepository, file port.FileRepository, user port.UserRepository, email port.EmailRepository, cache port.CacheRepository) *QuoteService {
+func NewQuoteService(repo port.QuoteRepository, file port.FileRepository, user port.UserRepository, email port.EmailRepository, quoteImage port.QuoteImageRepository, cache port.CacheRepository) *QuoteService {
 	return &QuoteService {
 		repo,
     file,
     user,
     email,
+    quoteImage,
 		cache,
 	}
 }
@@ -72,13 +74,23 @@ func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote, fi
 
   // Handle File Saving
 
-  _, err = us.file.Save(ctx, file, fileName)
+  path, err := us.file.Save(ctx, file, fileName)
 
   if err != nil {
     return nil, domain.ErrInternal
   }
 
   // QuoteImage Repository
+
+  _, err = us.quoteImage.CreateQuoteImage(ctx, &domain.QuoteImage{
+    ID: uuid.New(),
+    QuoteID: quote.ID,
+    URL: path,
+  })
+
+  if err != nil {
+    return nil, domain.ErrInternal
+  }
 
   // Send email
 
