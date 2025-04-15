@@ -107,7 +107,8 @@ func main() {
 
 	// Quote
 	quoteRepo := postgres.NewQuoteRepository(db)
-	quoteService := service.NewQuoteService(quoteRepo, s3, userRepo, email, cache)
+  quoteImageRepo := repository.NewQuoteImageRepository(db)
+	quoteService := service.NewQuoteService(quoteRepo, s3, userRepo, email, quoteImageRepo, cache)
 	quoteHandler := http.NewQuoteHandler(quoteService)
 
 	// Init router
