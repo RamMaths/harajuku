@@ -15,8 +15,8 @@ const (
 // Appointment is an entity that represents a user
 type Appointment struct {
 	ID          uuid.UUID
-	clientID    string
-	slotID      string
-	quoteID     string
-  status      Status
+	ClientID    uuid.UUID
+	SlotID      uuid.UUID
+	QuoteID     uuid.UUID
+  Status      Status
 }
