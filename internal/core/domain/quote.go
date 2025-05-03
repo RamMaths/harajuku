@@ -49,5 +49,4 @@ type Quote struct {
 	Description     string
 	State           QuoteState
 	Price           float64
-	TestRequired    bool
 }

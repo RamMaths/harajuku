@@ -8,7 +8,6 @@ CREATE TABLE "Quote" (
 	"description" TEXT,
 	"state" quote_state_enum NOT NULL,
 	"price" REAL NOT NULL,
-	"testRequired" BOOLEAN NOT NULL,
     
 	PRIMARY KEY("id"),
 	FOREIGN KEY("typeOfServiceId") REFERENCES "TypeOfService"("id") ON UPDATE CASCADE ON DELETE RESTRICT,

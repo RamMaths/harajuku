@@ -41,13 +41,12 @@ func TestCreateQuote(t *testing.T) {
 
 	quote := &domain.Quote{
 		ID:              uuid.New(),
-		TypeOfServiceID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-		ClientID:        uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+		TypeOfServiceID: uuid.MustParse("b3f9e12e-74b7-4f64-a57f-3943f7065b3e"),
+		ClientID:        uuid.MustParse("0f75e0b1-134e-42f9-92ae-d1f0e3a63a1f"),
 		Time:            time.Now(),
 		Description:     "Test create",
 		State:           "pending",
 		Price:           123.45,
-		TestRequired:    true,
 	}
 
 	t.Logf("Quote creation with ID: %v", quote.ID)
@@ -67,7 +66,7 @@ func TestGetQuoteByID(t *testing.T) {
 	repo := postgres.NewQuoteRepository(db)
 	ctx := context.Background()
 
-	id := uuid.MustParse("a2ef0527-1616-4c00-a466-9dfce3d66787")
+	id := uuid.MustParse("5bdf6192-d3a1-4579-9614-39caad8b4397")
 
 	t.Logf("Fetching quote with ID: %v", id)
 
@@ -103,13 +102,12 @@ func TestUpdateQuote(t *testing.T) {
 	id := uuid.New()
 	original := &domain.Quote{
 		ID:              id,
-		TypeOfServiceID: uuid.MustParse("11111111-1111-1111-1111-111111111111"),
-		ClientID:        uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+		TypeOfServiceID: uuid.MustParse("b3f9e12e-74b7-4f64-a57f-3943f7065b3e"),
+		ClientID:        uuid.MustParse("0f75e0b1-134e-42f9-92ae-d1f0e3a63a1f"),
 		Time:            time.Now(),
 		Description:     "Before update",
 		State:           "pending",
 		Price:           150.0,
-		TestRequired:    true,
 	}
 	t.Logf("Creating original quote with ID: %v", id)
 	_, err := repo.CreateQuote(ctx, original)
@@ -119,7 +117,7 @@ func TestUpdateQuote(t *testing.T) {
 
 	t.Logf("Updating quote with ID: %v", id)
 	original.Description = "After update"
-	original.State = "completed"
+	original.State = "approved"
 	original.Price = 300.0
 	updated, err := repo.UpdateQuote(ctx, original)
 	if err != nil {
@@ -136,7 +134,7 @@ func TestDeleteQuote(t *testing.T) {
 	repo := postgres.NewQuoteRepository(db)
 	ctx := context.Background()
 
-	id := uuid.MustParse("8b985a40-00de-454b-9c7d-029526f80fe9")
+	id := uuid.MustParse("5bdf6192-d3a1-4579-9614-39caad8b4397")
 
 	t.Logf("Deleting quote with ID: %v", id)
 	err := repo.DeleteQuote(ctx, id)

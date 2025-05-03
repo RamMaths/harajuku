@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS "TypeOfService";
+DROP TABLE IF EXISTS "TypeOfService" CASCADE;

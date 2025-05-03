@@ -32,7 +32,6 @@ type quoteResponse struct {
 	Description     string    `json:"description"`
 	State           string    `json:"state"`
 	Price           float64   `json:"price"`
-	TestRequired    bool      `json:"testRequired"`
 	Time            string    `json:"time"`
 }
 
@@ -45,15 +44,14 @@ func newQuoteResponse(q *domain.Quote) *quoteResponse {
 		Description:     q.Description,
 		State:           string(q.State),
 		Price:           q.Price,
-		TestRequired:    q.TestRequired,
 		Time:            q.Time.Format(time.RFC3339),
 	}
 }
 
 // createQuoteRequest representa el cuerpo de la solicitud para crear una cotización
 type createQuoteRequest struct {
-	TypeOfServiceID string    `form:"typeOfServiceID" binding:"required"`
-	Description     string    `form:"description" binding:"required"`
+	TypeOfServiceID string `form:"typeOfServiceID" binding:"required"`
+	Description     string `form:"description" binding:"required"`
 }
 
 // CreateQuote godoc
@@ -71,69 +69,68 @@ type createQuoteRequest struct {
 // @Failure        500              {object}  errorResponse  "Internal server error"
 // @Router         /quotes [post]
 func (qh *QuoteHandler) CreateQuote(ctx *gin.Context) {
-  // Get user ID from auth token
-  authPayload := getAuthPayload(ctx, authorizationPayloadKey)
+	// Get user ID from auth token
+	authPayload := getAuthPayload(ctx, authorizationPayloadKey)
 
-  if authPayload == nil {
-    handleError(ctx, domain.ErrUnauthorized)
-    return
-  }
+	if authPayload == nil {
+		handleError(ctx, domain.ErrUnauthorized)
+		return
+	}
 
-  userID := authPayload.UserID
+	userID := authPayload.UserID
 
-  // Parse multipart form
-  if err := ctx.Request.ParseMultipartForm(10 << 20); err != nil {
-    validationError(ctx, fmt.Errorf("failed to parse multipart form: %v", err))
-    return
-  }
+	// Parse multipart form
+	if err := ctx.Request.ParseMultipartForm(10 << 20); err != nil {
+		validationError(ctx, fmt.Errorf("failed to parse multipart form: %v", err))
+		return
+	}
 
-  // Bind the form data
-  var req createQuoteRequest
-  if err := ctx.ShouldBind(&req); err != nil {
-    validationError(ctx, err)
-    return
-  }
+	// Bind the form data
+	var req createQuoteRequest
+	if err := ctx.ShouldBind(&req); err != nil {
+		validationError(ctx, err)
+		return
+	}
 
-  // Parse UUIDs
-  typeOfServiceID, err := uuid.Parse(req.TypeOfServiceID)
-  if err != nil {
-    validationError(ctx, fmt.Errorf("invalid typeOfServiceID format"))
-    return
-  }
+	// Parse UUIDs
+	typeOfServiceID, err := uuid.Parse(req.TypeOfServiceID)
+	if err != nil {
+		validationError(ctx, fmt.Errorf("invalid typeOfServiceID format"))
+		return
+	}
 
-  // Get the file
-  file, fileHeader, err := ctx.Request.FormFile("file")
-  if err != nil {
-    validationError(ctx, fmt.Errorf("file is required: %v", err))
-    return
-  }
-  defer file.Close()
+	// Get the file
+	file, fileHeader, err := ctx.Request.FormFile("file")
+	if err != nil {
+		validationError(ctx, fmt.Errorf("file is required: %v", err))
+		return
+	}
+	defer file.Close()
 
-  fileBytes, err := io.ReadAll(file)
-  if err != nil {
-    handleError(ctx, fmt.Errorf("failed to read file: %v", err))
-    return
-  }
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		handleError(ctx, fmt.Errorf("failed to read file: %v", err))
+		return
+	}
 
-  quote := domain.Quote{
-    ID:              uuid.New(),
-    TypeOfServiceID: typeOfServiceID,
-    ClientID:        userID,
-    Time:            time.Now(),
-    Description:     req.Description,
-    State:           "pending",
-    Price:           0,
-    TestRequired:    false,
-  }
+	quote := domain.Quote{
+		ID:              uuid.New(),
+		TypeOfServiceID: typeOfServiceID,
+		ClientID:        userID,
+		Time:            time.Now(),
+		Description:     req.Description,
+		State:           "pending",
+		Price:           0,
+	}
 
-  createdQuote, err := qh.svc.CreateQuote(ctx, &quote, fileBytes, fileHeader.Filename)
-  if err != nil {
-    handleError(ctx, err)
-    return
-  }
+	createdQuote, err := qh.svc.CreateQuote(ctx, &quote, fileBytes, fileHeader.Filename)
+	if err != nil {
+		handleError(ctx, err)
+		return
+	}
 
-  rsp := newQuoteResponse(createdQuote)
-  handleSuccess(ctx, rsp)
+	rsp := newQuoteResponse(createdQuote)
+	handleSuccess(ctx, rsp)
 }
 
 // listQuotesRequest representa los parámetros de la consulta para listar cotizaciones
@@ -233,7 +230,6 @@ type updateQuoteRequest struct {
 	Description     string            `json:"description" binding:"required"`
 	State           domain.QuoteState `json:"state" binding:"required"`
 	Price           float64           `json:"price" binding:"required"`
-	TestRequired    bool              `json:"testRequired" binding:"required"`
 }
 
 // UpdateQuote godoc
@@ -282,7 +278,6 @@ func (qh *QuoteHandler) UpdateQuote(ctx *gin.Context) {
 		Description:     req.Description,
 		State:           req.State,
 		Price:           req.Price,
-		TestRequired:    req.TestRequired,
 	}
 
 	_, err := qh.svc.UpdateQuote(ctx, quote)
