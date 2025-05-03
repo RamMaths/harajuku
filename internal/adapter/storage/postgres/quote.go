@@ -23,8 +23,8 @@ func NewQuoteRepository(db *DB) *QuoteRepository {
 // CreateQuote creates a new quote in the database
 func (r *QuoteRepository) CreateQuote(ctx context.Context, quote *domain.Quote) (*domain.Quote, error) {
 	query := r.db.QueryBuilder.Insert("\"Quote\"").
-		Columns("id", "\"typeOfServiceId\"", "\"clientId\"", "\"time\"", "\"description\"", "\"state\"", "\"price\"", "\"testRequired\"").
-		Values(quote.ID, quote.TypeOfServiceID, quote.ClientID, quote.Time, quote.Description, quote.State, quote.Price, quote.TestRequired).
+		Columns("id", "\"typeOfServiceId\"", "\"clientId\"", "\"time\"", "\"description\"", "\"state\"", "\"price\"").
+		Values(quote.ID, quote.TypeOfServiceID, quote.ClientID, quote.Time, quote.Description, quote.State, quote.Price).
 		Suffix("RETURNING id")
 
 	sql, args, err := query.ToSql()
@@ -44,7 +44,7 @@ func (r *QuoteRepository) CreateQuote(ctx context.Context, quote *domain.Quote) 
 func (r *QuoteRepository) GetQuoteByID(ctx context.Context, id uuid.UUID) (*domain.Quote, error) {
 	var q domain.Quote
 
-	query := r.db.QueryBuilder.Select("id", "\"typeOfServiceId\"", "\"clientId\"", "\"time\"", "\"description\"", "\"state\"", "\"price\"", "\"testRequired\"").
+	query := r.db.QueryBuilder.Select("id", "\"typeOfServiceId\"", "\"clientId\"", "\"time\"", "\"description\"", "\"state\"", "\"price\"").
 		From("\"Quote\"").
 		Where(sq.Eq{"id": id}).
 		Limit(1)
@@ -54,7 +54,7 @@ func (r *QuoteRepository) GetQuoteByID(ctx context.Context, id uuid.UUID) (*doma
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&q.ID, &q.TypeOfServiceID, &q.ClientID, &q.Time, &q.Description, &q.State, &q.Price, &q.TestRequired)
+	err = r.db.QueryRow(ctx, sql, args...).Scan(&q.ID, &q.TypeOfServiceID, &q.ClientID, &q.Time, &q.Description, &q.State, &q.Price)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, domain.ErrDataNotFound
@@ -69,7 +69,7 @@ func (r *QuoteRepository) GetQuoteByID(ctx context.Context, id uuid.UUID) (*doma
 func (r *QuoteRepository) ListQuotes(ctx context.Context, skip, limit uint64) ([]domain.Quote, error) {
 	var quotes []domain.Quote
 
-	query := r.db.QueryBuilder.Select("id", "\"typeOfServiceId\"", "\"clientId\"", "time", "description", "state", "price", "\"testRequired\"").
+	query := r.db.QueryBuilder.Select("id", "\"typeOfServiceId\"", "\"clientId\"", "time", "description", "state", "price").
 		From("\"Quote\"").
 		Limit(limit).
 		Offset((skip - 1) * limit)
@@ -90,7 +90,7 @@ func (r *QuoteRepository) ListQuotes(ctx context.Context, skip, limit uint64) ([
 
 	for rows.Next() {
 		var q domain.Quote
-		if err := rows.Scan(&q.ID, &q.TypeOfServiceID, &q.ClientID, &q.Time, &q.Description, &q.State, &q.Price, &q.TestRequired); err != nil {
+		if err := rows.Scan(&q.ID, &q.TypeOfServiceID, &q.ClientID, &q.Time, &q.Description, &q.State, &q.Price); err != nil {
 			return nil, err
 		}
 		quotes = append(quotes, q)
@@ -112,7 +112,6 @@ func (r *QuoteRepository) UpdateQuote(ctx context.Context, quote *domain.Quote) 
 		Set("description", quote.Description).
 		Set("state", quote.State).
 		Set("price", quote.Price).
-		Set("\"testRequired\"", quote.TestRequired).
 		Where(sq.Eq{"id": quote.ID}).
 		Suffix("RETURNING *")
 
@@ -121,7 +120,7 @@ func (r *QuoteRepository) UpdateQuote(ctx context.Context, quote *domain.Quote) 
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&quote.ID, &quote.TypeOfServiceID, &quote.ClientID, &quote.Time, &quote.Description, &quote.State, &quote.Price, &quote.TestRequired)
+	err = r.db.QueryRow(ctx, sql, args...).Scan(&quote.ID, &quote.TypeOfServiceID, &quote.ClientID, &quote.Time, &quote.Description, &quote.State, &quote.Price)
 	if err != nil {
 		return nil, err
 	}

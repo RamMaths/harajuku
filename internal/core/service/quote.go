@@ -19,22 +19,22 @@ import (
  * and cache service
  */
 type QuoteService struct {
-	repo  port.QuoteRepository
-  file port.FileRepository
-  user port.UserRepository
-  email port.EmailRepository
-  quoteImage port.QuoteImageRepository
-	cache port.CacheRepository
+	repo       port.QuoteRepository
+	file       port.FileRepository
+	user       port.UserRepository
+	email      port.EmailRepository
+	quoteImage port.QuoteImageRepository
+	cache      port.CacheRepository
 }
 
 // NewQuoteService creates a new quote service instance
 func NewQuoteService(repo port.QuoteRepository, file port.FileRepository, user port.UserRepository, email port.EmailRepository, quoteImage port.QuoteImageRepository, cache port.CacheRepository) *QuoteService {
-	return &QuoteService {
+	return &QuoteService{
 		repo,
-    file,
-    user,
-    email,
-    quoteImage,
+		file,
+		user,
+		email,
+		quoteImage,
 		cache,
 	}
 }
@@ -42,19 +42,19 @@ func NewQuoteService(repo port.QuoteRepository, file port.FileRepository, user p
 // Register creates a new quote
 func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote, file []byte, fileName string) (*domain.Quote, error) {
 
-  // QuoteRepository
+	// QuoteRepository
 
-  quote, err := us.repo.CreateQuote(ctx, quote)
+	quote, err := us.repo.CreateQuote(ctx, quote)
 
 	if err != nil {
-    slog.Error("Quote registration failed", "error", err)
+		slog.Error("Quote registration failed", "error", err)
 		if err == domain.ErrConflictingData {
 			return nil, err
 		}
 		return nil, domain.ErrInternal
 	}
 
-  // Cache
+	// Cache
 
 	cacheKey := util.GenerateCacheKey("quote", quote.ID)
 	quoteSerialized, err := util.Serialize(quote)
@@ -72,57 +72,57 @@ func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote, fi
 		return nil, domain.ErrInternal
 	}
 
-  // Handle File Saving
+	// Handle File Saving
 
-  path, err := us.file.Save(ctx, file, fileName)
+	path, err := us.file.Save(ctx, file, fileName)
 
-  if err != nil {
-    return nil, domain.ErrInternal
-  }
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
 
-  // QuoteImage Repository
+	// QuoteImage Repository
 
-  _, err = us.quoteImage.CreateQuoteImage(ctx, &domain.QuoteImage{
-    ID: uuid.New(),
-    QuoteID: quote.ID,
-    URL: path,
-  })
+	_, err = us.quoteImage.CreateQuoteImage(ctx, &domain.QuoteImage{
+		ID:      uuid.New(),
+		QuoteID: quote.ID,
+		URL:     path,
+	})
 
-  if err != nil {
-    return nil, domain.ErrInternal
-  }
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
 
-  // Send email
+	// Send email
 
-  emails, err := us.user.GetAdminsEmails(ctx)
+	emails, err := us.user.GetAdminsEmails(ctx)
 
-  if err != nil {
-    return nil, domain.ErrInternal
-  }
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
 
-  client, err := us.user.GetUserByID(ctx, quote.ClientID)
+	client, err := us.user.GetUserByID(ctx, quote.ClientID)
 
-  err = us.email.SendEmail(
-    ctx,
-    emails,
-    "Se ha creado una nueva cotización",
-    fmt.Sprintf(
-      "Una nueva cotización se ha creado\n\t\tid: %s\n\t\tDescripción: %s\n\t\tCliente: %s %s",
-      quote.ID.String(),
-      quote.Description,
-      client.Name,
-      client.LastName,
-    ),
-    "",
-  )
+	err = us.email.SendEmail(
+		ctx,
+		emails,
+		"Se ha creado una nueva cotización",
+		fmt.Sprintf(
+			"Una nueva cotización se ha creado\n\t\tid: %s\n\t\tDescripción: %s\n\t\tCliente: %s %s",
+			quote.ID.String(),
+			quote.Description,
+			client.Name,
+			client.LastName,
+		),
+		"",
+	)
 
-  if err != nil {
-    // Log detailed error and continue since email failure doesn't block quote creation
-    slog.Error("failed to send email notification for quote %s: %v", quote.ID.String(), err)
-    return nil, domain.ErrInternal
-  }
+	if err != nil {
+		// Log detailed error and continue since email failure doesn't block quote creation
+		slog.Error("failed to send email notification for quote %s: %v", quote.ID.String(), err)
+		return nil, domain.ErrInternal
+	}
 
-  // Return the new quote
+	// Return the new quote
 
 	return quote, nil
 }
@@ -206,29 +206,27 @@ func (us *QuoteService) UpdateQuote(ctx context.Context, quote *domain.Quote) (*
 		return nil, domain.ErrInternal
 	}
 
-  // Create zero values for comparison
-  zeroUUID := uuid.UUID{}
-  zeroTime := time.Time{}
+	// Create zero values for comparison
+	zeroUUID := uuid.UUID{}
+	zeroTime := time.Time{}
 
-  emptyData := quote.TypeOfServiceID == zeroUUID &&
-    quote.ClientID == zeroUUID &&
-    quote.Time == zeroTime &&
-    quote.Description == "" &&
-    quote.State == "" &&
-    quote.Price == 0.0 &&
-    !quote.TestRequired
+	emptyData := quote.TypeOfServiceID == zeroUUID &&
+		quote.ClientID == zeroUUID &&
+		quote.Time == zeroTime &&
+		quote.Description == "" &&
+		quote.State == "" &&
+		quote.Price == 0.0
 
-  sameData := existingQuote.TypeOfServiceID == quote.TypeOfServiceID &&
-    existingQuote.ClientID == quote.ClientID &&
-    existingQuote.Time.Equal(quote.Time) &&
-    existingQuote.Description == quote.Description &&
-    existingQuote.State == quote.State &&
-    existingQuote.Price == quote.Price &&
-    existingQuote.TestRequired == quote.TestRequired
+	sameData := existingQuote.TypeOfServiceID == quote.TypeOfServiceID &&
+		existingQuote.ClientID == quote.ClientID &&
+		existingQuote.Time.Equal(quote.Time) &&
+		existingQuote.Description == quote.Description &&
+		existingQuote.State == quote.State &&
+		existingQuote.Price == quote.Price
 
-  if emptyData || sameData {
-      return nil, domain.ErrNoUpdatedData
-  }
+	if emptyData || sameData {
+		return nil, domain.ErrNoUpdatedData
+	}
 
 	_, err = us.repo.UpdateQuote(ctx, quote)
 	if err != nil {
