@@ -88,28 +88,33 @@ func main() {
 	authService := service.NewAuthService(userRepo, token)
 	authHandler := http.NewAuthHandler(authService)
 
-  // S3
+	// S3
 
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(config.AwsS3.Region),
 	}))
 
-  s3 := awsS3.NewAwsS3(sess, config.AwsS3.Bucket)
+	s3 := awsS3.NewAwsS3(sess, config.AwsS3.Bucket)
 
-  // Email
+	// Email
 
-  email, err := email.New(ctx, config.Email)
+	email, err := email.New(ctx, config.Email)
 
-  if err != nil {
+	if err != nil {
 		slog.Error("Error initializing the email service", "error", err)
 		os.Exit(1)
-  }
+	}
 
 	// Quote
 	quoteRepo := postgres.NewQuoteRepository(db)
-  quoteImageRepo := repository.NewQuoteImageRepository(db)
+	quoteImageRepo := repository.NewQuoteImageRepository(db)
 	quoteService := service.NewQuoteService(quoteRepo, s3, userRepo, email, quoteImageRepo, cache)
 	quoteHandler := http.NewQuoteHandler(quoteService)
+
+	// TypeOfService
+	typeOfServiceRepo := postgres.NewTypeOfServiceRepository(db)
+	typeOfServiceService := service.NewTypeOfServiceService(typeOfServiceRepo, cache)
+	typeOfServiceHandler := http.NewTypeOfServiceHandler(typeOfServiceService)
 
 	// Init router
 	router, err := http.NewRouter(
@@ -118,6 +123,7 @@ func main() {
 		*userHandler,
 		*authHandler,
 		*quoteHandler,
+		*typeOfServiceHandler,
 	)
 
 	if err != nil {

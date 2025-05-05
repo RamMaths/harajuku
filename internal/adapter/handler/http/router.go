@@ -28,6 +28,7 @@ func NewRouter(
 	userHandler UserHandler,
 	authHandler AuthHandler,
 	quoteHandler QuoteHandler,
+	typeOfServiceHandler TypeOfServiceHandler,
 ) (*Router, error) {
 	// Disable debug mode in production
 	if config.Env == "production" {
@@ -83,6 +84,15 @@ func NewRouter(
 			quote.GET("/", quoteHandler.GetQuote)
 			quote.PUT("/", quoteHandler.UpdateQuote)
 			quote.DELETE("/", quoteHandler.DeleteQuote)
+		}
+
+		typeOfService := v1.Group("/typesofservice").Use(authMiddleware(token))
+		{
+			typeOfService.POST("/", typeOfServiceHandler.CreateTypeOfService)
+			typeOfService.GET("all/", typeOfServiceHandler.ListTypeOfServices)
+			typeOfService.GET("/", typeOfServiceHandler.GetTypeOfService)
+			typeOfService.PUT("/", typeOfServiceHandler.UpdateTypeOfService)
+			typeOfService.DELETE("/", typeOfServiceHandler.DeleteTypeOfService)
 		}
 	}
 
