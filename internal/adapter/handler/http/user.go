@@ -23,11 +23,11 @@ func NewUserHandler(svc port.UserService) *UserHandler {
 
 // registerRequest represents the request body for creating a user
 type registerRequest struct {
-	Name     string `json:"name" binding:"required" example:"John"`
-	LastName     string `json:"lastName" binding:"required" example:"Doe"`
-	SecondLastName     string `json:"SecondLastName" example:"Doe"`
-	Email    string `json:"email" binding:"required,email" example:"test@example.com"`
-	Password string `json:"password" binding:"required,min=8" example:"12345678"`
+	Name           string `json:"name" binding:"required" example:"John"`
+	LastName       string `json:"lastName" binding:"required" example:"Doe"`
+	SecondLastName string `json:"SecondLastName" example:"Doe"`
+	Email          string `json:"email" binding:"required,email" example:"test@example.com"`
+	Password       string `json:"password" binding:"required,min=8" example:"12345678"`
 }
 
 // Register godoc
@@ -52,15 +52,15 @@ func (uh *UserHandler) Register(ctx *gin.Context) {
 		return
 	}
 
-  user_id := uuid.New()
+	user_id := uuid.New()
 
 	user := domain.User{
-    ID: user_id,
-		Name:     req.Name,
-		Email:    req.Email,
-    LastName: req.LastName,
-    SecondLastName: req.SecondLastName,
-		Password: req.Password,
+		ID:             user_id,
+		Name:           req.Name,
+		Email:          req.Email,
+		LastName:       req.LastName,
+		SecondLastName: req.SecondLastName,
+		Password:       req.Password,
 	}
 
 	_, err := uh.svc.Register(ctx, &user)
@@ -76,17 +76,17 @@ func (uh *UserHandler) Register(ctx *gin.Context) {
 
 // listUsersRequest represents the request body for listing users
 type listUsersRequest struct {
-    Skip    uint64             `form:"skip" binding:"min=0" example:"0"`
-    Limit   uint64             `form:"limit" binding:"required,min=1" example:"5"`
-    Filters userFiltersRequest `form:"filters"`
+	Skip    uint64             `form:"skip" binding:"min=0" example:"0"`
+	Limit   uint64             `form:"limit" binding:"required,min=1" example:"5"`
+	Filters userFiltersRequest `form:"filters"`
 }
 
 // userFiltersRequest represents the filter criteria for listing users
 type userFiltersRequest struct {
-    Name           string `form:"name" example:"John"`
-    LastName       string `form:"lastName" example:"Doe"`
-    SecondLastName string `form:"secondLastName" example:"Smith"`
-    Role           string `form:"role" validate:"omitempty,oneof=admin client" example:"client" enums:"admin,client"`
+	Name           string `form:"name" example:"John"`
+	LastName       string `form:"lastName" example:"Doe"`
+	SecondLastName string `form:"secondLastName" example:"Smith"`
+	Role           string `form:"role" validate:"omitempty,oneof=admin client" example:"client" enums:"admin,client"`
 }
 
 // ListUsers godoc
@@ -105,36 +105,36 @@ type userFiltersRequest struct {
 //	@Router			/users [get]
 //	@Security		BearerAuth
 func (uh *UserHandler) ListUsers(ctx *gin.Context) {
-  var req listUsersRequest
-  var usersList []userResponse
+	var req listUsersRequest
+	var usersList []userResponse
 
-  // First bind the basic parameters
-  if err := ctx.ShouldBindQuery(&req); err != nil {
-    validationError(ctx, err)
-    return
-  }
+	// First bind the basic parameters
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		validationError(ctx, err)
+		return
+	}
 
-  // Manually extract filter parameters
-  filters := domain.UserFilters{
-    Name:           ctx.Query("filters.name"),
-    LastName:       ctx.Query("filters.lastName"),
-    SecondLastName: ctx.Query("filters.secondLastName"),
-    Role:           domain.UserRole(ctx.Query("filters.role")),
-  }
+	// Manually extract filter parameters
+	filters := domain.UserFilters{
+		Name:           ctx.Query("filters.name"),
+		LastName:       ctx.Query("filters.lastName"),
+		SecondLastName: ctx.Query("filters.secondLastName"),
+		Role:           domain.UserRole(ctx.Query("filters.role")),
+	}
 
-  // Debug output
-  slog.Info("Filter parameters",
-    "name", filters.Name,
-    "lastName", filters.LastName,
-    "role", filters.Role,
-    "rawQuery", ctx.Request.URL.RawQuery,
-  )
+	// Debug output
+	slog.Info("Filter parameters",
+		"name", filters.Name,
+		"lastName", filters.LastName,
+		"role", filters.Role,
+		"rawQuery", ctx.Request.URL.RawQuery,
+	)
 
-  users, err := uh.svc.ListUsers(ctx, req.Skip, req.Limit, filters)
-  if err != nil {
-    handleError(ctx, err)
-    return
-  }
+	users, err := uh.svc.ListUsers(ctx, req.Skip, req.Limit, filters)
+	if err != nil {
+		handleError(ctx, err)
+		return
+	}
 
 	for _, user := range users {
 		usersList = append(usersList, newUserResponse(&user))
@@ -191,7 +191,7 @@ type updateUserRequest struct {
 	SecondLastName string          `json:"name" binding:"omitempty,required" example:"John Doe"`
 	Email          string          `json:"email" binding:"omitempty,required,email" example:"test@example.com"`
 	Password       string          `json:"password" binding:"omitempty,required,min=8" example:"12345678"`
-  Role     domain.UserRole       `json:"role" binding:"omitempty,required,user_role" example:"admin"`
+	Role           domain.UserRole `json:"role" binding:"omitempty,required,user_role" example:"admin"`
 }
 
 // UpdateUser godoc
@@ -212,39 +212,39 @@ type updateUserRequest struct {
 //	@Router			/users/{id} [put]
 //	@Security		BearerAuth
 func (uh *UserHandler) UpdateUser(ctx *gin.Context) {
-    var req updateUserRequest
-    if err := ctx.ShouldBindJSON(&req); err != nil {
-        validationError(ctx, err)
-        return
-    }
+	var req updateUserRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		validationError(ctx, err)
+		return
+	}
 
-    idStr:= ctx.Param("id")
-    id, err := uuid.Parse(idStr)
+	idStr := ctx.Param("id")
+	id, err := uuid.Parse(idStr)
 
-    if err != nil {
-        validationError(ctx, err)
-        return
-    }
+	if err != nil {
+		validationError(ctx, err)
+		return
+	}
 
-    user := domain.User{
-        ID:       id,
-        Name:     req.Name,
-        LastName:     req.LastName,
-        SecondLastName:     req.SecondLastName,
-        Email:    req.Email,
-        Password: req.Password,
-        Role: req.Role,
-    }
+	user := domain.User{
+		ID:             id,
+		Name:           req.Name,
+		LastName:       req.LastName,
+		SecondLastName: req.SecondLastName,
+		Email:          req.Email,
+		Password:       req.Password,
+		Role:           req.Role,
+	}
 
-    _, err = uh.svc.UpdateUser(ctx, &user)
-    if err != nil {
-        handleError(ctx, err)
-        return
-    }
+	_, err = uh.svc.UpdateUser(ctx, &user)
+	if err != nil {
+		handleError(ctx, err)
+		return
+	}
 
-    rsp := newUserResponse(&user)
+	rsp := newUserResponse(&user)
 
-    handleSuccess(ctx, rsp)
+	handleSuccess(ctx, rsp)
 }
 
 // deleteUserRequest represents the request body for deleting a user
