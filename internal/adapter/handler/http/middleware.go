@@ -1,10 +1,12 @@
 package http
 
 import (
+	"net/http"
 	"strings"
 
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -20,6 +22,11 @@ const (
 // authMiddleware is a middleware to check if the user is authenticated
 func authMiddleware(token port.TokenService) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
+		if ctx.Request.Method == http.MethodOptions {
+      ctx.Next()
+      return
+    }
+
 		authorizationHeader := ctx.GetHeader(authorizationHeaderKey)
 
 		isEmpty := len(authorizationHeader) == 0
@@ -59,6 +66,11 @@ func authMiddleware(token port.TokenService) gin.HandlerFunc {
 // adminMiddleware is a middleware to check if the user is an admin
 func adminMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
+		if ctx.Request.Method == http.MethodOptions {
+      ctx.Next()
+      return
+    }
+
 		payload := getAuthPayload(ctx, authorizationPayloadKey)
 
 		isAdmin := payload.Role == domain.Admin
