@@ -2,6 +2,7 @@ package http
 
 import (
 	"log/slog"
+	"net/http"
 	"strings"
 
 	"harajuku/backend/internal/adapter/config"
@@ -48,21 +49,28 @@ func NewRouter(
 	allowedOrigins := config.AllowedOrigins
 	originsList := strings.Split(allowedOrigins, ",")
 	ginConfig.AllowOrigins = originsList
-	ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Authorization")
+	ginConfig.AllowHeaders = append(
+		ginConfig.AllowHeaders, 
+		"Authorization",
+    "Content-Type",
+    "X-Requested-With",
+	)
+	ginConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
+	// If you need the frontend to read the token or other headers back:
+	ginConfig.ExposeHeaders = []string{"Authorization"}
 	ginConfig.AllowCredentials = true
-
-	// In case we need more geaders
-	//ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Content-Type", "X-Requested-With")
-
-	// You might need other headers too
-	ginConfig.AllowHeaders = append(ginConfig.AllowHeaders, "Content-Type", "X-Requested-With")
-
 	router := gin.New()
-	router.Use(sloggin.New(slog.Default()), gin.Recovery(), cors.New(ginConfig))
+	router.Use(cors.New(ginConfig), sloggin.New(slog.Default()), gin.Recovery())
 
 	// Swagger
 	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
+	//Options
+	router.OPTIONS("/*any", func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	// API
 	v1 := router.Group("/v1")
 	{
 		user := v1.Group("/users")
@@ -79,20 +87,20 @@ func NewRouter(
 
 		quote := v1.Group("/quotes").Use(authMiddleware(token))
 		{
-			quote.POST("/", quoteHandler.CreateQuote)
-			quote.GET("all/", quoteHandler.ListQuotes)
-			quote.GET("/", quoteHandler.GetQuote)
-			quote.PUT("/", quoteHandler.UpdateQuote)
-			quote.DELETE("/", quoteHandler.DeleteQuote)
+			quote.POST("", quoteHandler.CreateQuote)
+			quote.GET("/all", quoteHandler.ListQuotes)
+			quote.GET("", quoteHandler.GetQuote)
+			quote.PUT("", quoteHandler.UpdateQuote)
+			quote.DELETE("", quoteHandler.DeleteQuote)
 		}
 
 		typeOfService := v1.Group("/typesofservice").Use(authMiddleware(token))
 		{
-			typeOfService.POST("/", typeOfServiceHandler.CreateTypeOfService)
-			typeOfService.GET("all/", typeOfServiceHandler.ListTypeOfServices)
-			typeOfService.GET("/", typeOfServiceHandler.GetTypeOfService)
-			typeOfService.PUT("/", typeOfServiceHandler.UpdateTypeOfService)
-			typeOfService.DELETE("/", typeOfServiceHandler.DeleteTypeOfService)
+			typeOfService.POST("", typeOfServiceHandler.CreateTypeOfService)
+			typeOfService.GET("/all", typeOfServiceHandler.ListTypeOfServices)
+			typeOfService.GET("", typeOfServiceHandler.GetTypeOfService)
+			typeOfService.PUT("", typeOfServiceHandler.UpdateTypeOfService)
+			typeOfService.DELETE("", typeOfServiceHandler.DeleteTypeOfService)
 		}
 	}
 
