@@ -88,6 +88,11 @@ func (r *AppointmentRepository) ListAppointments(ctx context.Context, filter por
 		query = query.Where(sq.Eq{"Appointment.clientId": *filter.CustomerID})
 	}
 
+	// Filter by Quote ID (Appointment.clientId)
+	if filter.QuoteId != nil {
+		query = query.Where(sq.Eq{"Appointment.quoteId": *filter.CustomerID})
+	}
+
 	// Filter by Appointment status
 	if filter.ByState != nil {
 		query = query.Where(sq.Eq{"Appointment.status": *filter.ByState})
