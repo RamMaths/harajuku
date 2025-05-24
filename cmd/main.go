@@ -116,6 +116,11 @@ func main() {
 	typeOfServiceService := service.NewTypeOfServiceService(typeOfServiceRepo, cache)
 	typeOfServiceHandler := http.NewTypeOfServiceHandler(typeOfServiceService)
 
+	// AvailabilitySlot
+	availabilitySlotRepo := postgres.NewAvailabilitySlotRepository(db)
+	availabilitySlotService := service.NewAvailabilitySlotService(availabilitySlotRepo, cache)
+	availabilitySlotHandler := http.NewAvailabilitySlotHandler(availabilitySlotService, userService)
+
 	// Init router
 	router, err := http.NewRouter(
 		config.HTTP,
@@ -124,6 +129,7 @@ func main() {
 		*authHandler,
 		*quoteHandler,
 		*typeOfServiceHandler,
+		*availabilitySlotHandler,
 	)
 
 	if err != nil {

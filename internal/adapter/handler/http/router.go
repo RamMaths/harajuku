@@ -30,6 +30,7 @@ func NewRouter(
 	authHandler AuthHandler,
 	quoteHandler QuoteHandler,
 	typeOfServiceHandler TypeOfServiceHandler,
+	availabilitySlotHandler AvailabilitySlotHandler,
 ) (*Router, error) {
 	// Disable debug mode in production
 	if config.Env == "production" {
@@ -102,6 +103,15 @@ func NewRouter(
 			typeOfService.PUT("", typeOfServiceHandler.UpdateTypeOfService)
 			typeOfService.DELETE("", typeOfServiceHandler.DeleteTypeOfService)
 		}
+
+		availabilitySlot := v1.Group("/availabilityslots").Use(authMiddleware(token))
+		{
+			availabilitySlot.POST("/", availabilitySlotHandler.CreateSlot)
+			availabilitySlot.GET("/", availabilitySlotHandler.ListSlots)
+			availabilitySlot.PUT("/:id", availabilitySlotHandler.UpdateSlot)
+			availabilitySlot.DELETE("/", availabilitySlotHandler.DeleteSlot)
+		}
+
 	}
 
 	return &Router{

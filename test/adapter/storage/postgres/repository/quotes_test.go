@@ -52,7 +52,6 @@ func TestCreateQuoteIntegration(t *testing.T) {
 		Description:     "Test Create Quote",
 		State:           "pending",
 		Price:           100.50,
-		TestRequired:    true,
 	}
 
 	createdQuote, err := repo.CreateQuote(ctx, &quote)
@@ -101,7 +100,6 @@ func TestGetQuoteByIDIntegration(t *testing.T) {
 		Description:     "Test Get Quote",
 		State:           "pending",
 		Price:           200.75,
-		TestRequired:    false,
 	}
 
 	_, err = repo.CreateQuote(ctx, &quote)
@@ -157,7 +155,6 @@ func TestListQuotesIntegration(t *testing.T) {
 			Description:     "Quote 1",
 			State:           "pending",
 			Price:           100.00,
-			TestRequired:    true,
 		},
 		{
 			ID:              uuid.New(),
@@ -167,7 +164,6 @@ func TestListQuotesIntegration(t *testing.T) {
 			Description:     "Quote 2",
 			State:           "approved",
 			Price:           200.00,
-			TestRequired:    false,
 		},
 	}
 
@@ -229,7 +225,6 @@ func TestUpdateQuoteIntegration(t *testing.T) {
 		Description:     "Test Update Quote",
 		State:           "pending",
 		Price:           50.25,
-		TestRequired:    false,
 	}
 
 	createdQuote, err := repo.CreateQuote(ctx, &quote)
@@ -287,7 +282,6 @@ func TestDeleteQuoteIntegration(t *testing.T) {
 		Description:     "Test Delete Quote",
 		State:           "pending",
 		Price:           75.50,
-		TestRequired:    true,
 	}
 
 	createdQuote, err := repo.CreateQuote(ctx, &quote)
