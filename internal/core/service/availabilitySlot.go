@@ -176,6 +176,11 @@ func (as *AvailabilitySlotService) UpdateAvailabilitySlot(ctx context.Context, s
 		return nil, domain.ErrInternal
 	}
 
+	err = as.cache.DeleteByPrefix(ctx, "availabilitySlots:*")
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
+
 	return slot, nil
 }
 
@@ -193,6 +198,11 @@ func (as *AvailabilitySlotService) DeleteAvailabilitySlot(ctx context.Context, i
 	cacheKey := util.GenerateCacheKey("availabilitySlot", id)
 
 	err = as.cache.Delete(ctx, cacheKey)
+	if err != nil {
+		return domain.ErrInternal
+	}
+
+	err = as.cache.DeleteByPrefix(ctx, "availabilitySlots:*")
 	if err != nil {
 		return domain.ErrInternal
 	}
