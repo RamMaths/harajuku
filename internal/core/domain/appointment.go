@@ -10,6 +10,7 @@ type AppointmentStatus string
 // UserRole enum values
 const (
 	Booked   AppointmentStatus = "booked"
+	Pending   AppointmentStatus = "pending"
 	Cancelled AppointmentStatus = "cancelled"
 	Completed AppointmentStatus = "completed"
 )

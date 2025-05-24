@@ -1,4 +1,4 @@
-CREATE TYPE "appointment_status_enum" AS ENUM ('booked', 'cancelled', 'completed', 'needs_review');
+CREATE TYPE "appointment_status_enum" AS ENUM ('booked', 'cancelled', 'completed', 'pending');
 
 CREATE TABLE "Appointment" (
 	"id" UUID NOT NULL UNIQUE,
