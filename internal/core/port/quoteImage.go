@@ -21,6 +21,8 @@ type QuoteImageRepository interface {
 	GetQuoteImageByID(ctx context.Context, id uuid.UUID) (*domain.QuoteImage, error)
 	// GetQuoteImages selects all quote images with optional filtering by QuoteID
 	GetQuoteImages(ctx context.Context, skip, limit uint64, filters domain.QuoteImageFilters) ([]domain.QuoteImage, error)
+  // Wrap a function in a DB transaction; if fn returns an error, rollback
+	WithTx(ctx context.Context, fn func(repo QuoteImageRepository) error) error
 }
 
 // QuoteImageService is an interface for interacting with quote-image-related business logic

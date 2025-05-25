@@ -11,84 +11,105 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// migrationsFS is a filesystem that embeds the migrations folder
-//
+// migrationsFS embeds the migrations folder
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-/**
- * DB is a wrapper for PostgreSQL database connection
- * that uses pgxpool as database driver.
- * It also holds a reference to squirrel.StatementBuilderType
- * which is used to build SQL queries that compatible with PostgreSQL syntax
- */
+// Conn defines the minimal interface for executing queries
+// both pgxpool.Pool and pgx.Tx implement these methods.
+type Conn interface {
+	Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+}
+
+// DB wraps a connection (pool or transaction) and squirrel builder
 type DB struct {
-	*pgxpool.Pool
-	QueryBuilder *squirrel.StatementBuilderType
+	Conn         Conn
+	QueryBuilder squirrel.StatementBuilderType
 	url          string
 }
 
-// New creates a new PostgreSQL database instance
-func New(ctx context.Context, config *config.DB) (*DB, error) {
+// New creates a new database pool instance
+type DBPool struct { *DB }
+
+func New(ctx context.Context, cfg *config.DB) (*DB, error) {
 	url := fmt.Sprintf("%s://%s:%s@%s:%s/%s?sslmode=disable",
-		config.Connection,
-		config.User,
-		config.Password,
-		config.Host,
-		config.Port,
-		config.Name,
+		cfg.Connection, cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.Name,
 	)
-
-	db, err := pgxpool.New(ctx, url)
+	pool, err := pgxpool.New(ctx, url)
 	if err != nil {
 		return nil, err
 	}
-
-	err = db.Ping(ctx)
-	if err != nil {
+	if err = pool.Ping(ctx); err != nil {
 		return nil, err
 	}
-
-	psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
-
-	return &DB{
-		db,
-		&psql,
-		url,
-	}, nil
+	builder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+	return &DB{Conn: pool, QueryBuilder: builder, url: url}, nil
 }
 
-// Migrate runs the database migration
+// BeginTx starts a new transaction and returns a new DB wrapping it
+func (db *DB) BeginTx(ctx context.Context) (*DB, error) {
+	tx, err := db.Conn.(*pgxpool.Pool).Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin tx: %w", err)
+	}
+	builder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+	return &DB{Conn: tx, QueryBuilder: builder, url: db.url}, nil
+}
+
+// WithTx executes fn inside a transaction, rolling back on error
+func (db *DB) WithTx(ctx context.Context, fn func(txDB *DB) error) error {
+	// Start transaction
+	txDB, err := db.BeginTx(ctx)
+	if err != nil {
+		return err
+	}
+	// Ensure rollback on panic or error
+	defer func() {
+		_ = txDB.Conn.(interface{ Rollback(ctx context.Context) error }).Rollback(ctx)
+	}()
+	// Execute user function
+	if err := fn(txDB); err != nil {
+		return err
+	}
+	// Commit
+	return txDB.Conn.(interface{ Commit(ctx context.Context) error }).Commit(ctx)
+}
+
+// Migrate runs DB migrations
 func (db *DB) Migrate() error {
 	driver, err := iofs.New(migrationsFS, "migrations")
 	if err != nil {
 		return err
 	}
-
-	migrations, err := migrate.NewWithSourceInstance("iofs", driver, db.url)
+	m, err := migrate.NewWithSourceInstance("iofs", driver, db.url)
 	if err != nil {
 		return err
 	}
-
-	err = migrations.Up()
+	err = m.Up()
 	if err != nil && err != migrate.ErrNoChange {
 		return err
 	}
-
 	return nil
 }
 
-// ErrorCode returns the error code of the given error
+// ErrorCode extracts Postgres error code
 func (db *DB) ErrorCode(err error) string {
-	pgErr := err.(*pgconn.PgError)
-	return pgErr.Code
+	if pgErr, ok := err.(*pgconn.PgError); ok {
+		return pgErr.Code
+	}
+	return ""
 }
 
-// Close closes the database connection
+// Close closes the underlying pool
 func (db *DB) Close() {
-	db.Pool.Close()
+	if pool, ok := db.Conn.(*pgxpool.Pool); ok {
+		pool.Close()
+	}
 }

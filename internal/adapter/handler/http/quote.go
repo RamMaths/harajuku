@@ -48,6 +48,51 @@ func newQuoteResponse(q *domain.Quote) *quoteResponse {
 	}
 }
 
+// quoteResponse representa la respuesta
+type quoteImageResponse struct {
+	ID              uuid.UUID `json:"id"`
+	QuoteID 				uuid.UUID `json:"quoteId"`
+	URL     				string    `json:"url"`
+}
+
+
+// quoteResponse representa la respuesta
+type quoteResponseWithImages struct {
+	ID              uuid.UUID 							`json:"id"`
+	TypeOfServiceID uuid.UUID 							`json:"typeOfServiceID"`
+	ClientID        uuid.UUID 							`json:"clientID"`
+	Description     string    							`json:"description"`
+	State           string    							`json:"state"`
+	Price           float64   							`json:"price"`
+	Time            string    							`json:"time"`
+	Images          []quoteImageResponse    `json:"images"`
+}
+
+// newQuoteResponse convierte un objeto domain. Quote en una respuesta de cotización
+func newQuoteResponseWithImages(q *domain.Quote, images []domain.QuoteImage) *quoteResponseWithImages {
+	// build the slice of image responses
+	respImgs := make([]quoteImageResponse, len(images))
+	for i, img := range images {
+			respImgs[i] = quoteImageResponse{
+					ID:      img.ID,
+					QuoteID: img.QuoteID,
+					URL:     img.URL,
+			}
+	}
+
+	return &quoteResponseWithImages{
+		ID:              q.ID,
+		TypeOfServiceID: q.TypeOfServiceID,
+		ClientID:        q.ClientID,
+		Description:     q.Description,
+		State:           string(q.State),
+		Price:           q.Price,
+		Time:            q.Time.Format(time.RFC3339),
+		Images:          respImgs,
+	}
+}
+
+
 // createQuoteRequest representa el cuerpo de la solicitud para crear una cotización
 type createQuoteRequest struct {
 	TypeOfServiceID string `form:"typeOfServiceID" binding:"required"`
@@ -196,6 +241,7 @@ func (qh *QuoteHandler) ListQuotes(ctx *gin.Context) {
 //	@Failure		404	{object}	errorResponse	"Data not found error"
 //	@Failure		500	{object}	errorResponse	"Internal server error"
 //	@Router			/quotes [get]
+
 func (qh *QuoteHandler) GetQuote(ctx *gin.Context) {
 	id := ctx.DefaultQuery("id", "")
 
@@ -211,14 +257,14 @@ func (qh *QuoteHandler) GetQuote(ctx *gin.Context) {
 	}
 
 	// Llamar al servicio para obtener la cotización
-	quote, err := qh.svc.GetQuote(ctx, quoteID)
+	quote, images, err := qh.svc.GetQuote(ctx, quoteID)
 	if err != nil {
 		handleError(ctx, err)
 		return
 	}
 
 	// Responder con la cotización
-	rsp := newQuoteResponse(quote)
+	rsp := newQuoteResponseWithImages(quote, images)
 	handleSuccess(ctx, rsp)
 }
 

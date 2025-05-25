@@ -1,10 +1,11 @@
-package postgres
+package repository
 
 import (
 	"context"
 	"fmt"
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
+	"harajuku/backend/internal/adapter/storage/postgres"
 	"log"
 
 	sq "github.com/Masterminds/squirrel"
@@ -13,10 +14,10 @@ import (
 )
 
 type AppointmentRepository struct {
-	db *DB
+	db *postgres.DB
 }
 
-func NewAppointmentRepository(db *DB) *AppointmentRepository {
+func NewAppointmentRepository(db *postgres.DB) *AppointmentRepository {
 	return &AppointmentRepository{
 		db,
 	}
@@ -30,11 +31,10 @@ func (r *AppointmentRepository) CreateAppointment(ctx context.Context, appointme
 									Suffix("RETURNING id")
 
 	sql, args, err := query.ToSql()
-	if err != nil {
-		return nil, err
+	if err != nil { return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&appointment.ID)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&appointment.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (r *AppointmentRepository) GetAppointmentByID(ctx context.Context, id uuid.
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&appointment.ID, &appointment.UserID, &appointment.SlotId, &appointment.QuoteId, &appointment.Status)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&appointment.ID, &appointment.UserID, &appointment.SlotId, &appointment.QuoteId, &appointment.Status)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, domain.ErrDataNotFound
@@ -119,7 +119,7 @@ func (r *AppointmentRepository) ListAppointments(ctx context.Context, filter por
 		return nil, fmt.Errorf("error building query: %w", err)
 	}
 
-	rows, err := r.db.Query(ctx, sql, args...)
+	rows, err := r.db.Conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error al ejecutar consulta: %w", err)
 	}
@@ -161,7 +161,7 @@ func (r *AppointmentRepository) UpdateAppointment(ctx context.Context, appointme
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&appointment.ID, &appointment.UserID, &appointment.SlotId, &appointment.QuoteId, &appointment.Status)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&appointment.ID, &appointment.UserID, &appointment.SlotId, &appointment.QuoteId, &appointment.Status)
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func (r *AppointmentRepository) DeleteAppointment(ctx context.Context, id uuid.U
 		return err
 	}
 
-	_, err = r.db.Exec(ctx, sql, args...)
+	_, err = r.db.Conn.Exec(ctx, sql, args...)
 	if err != nil {
 		return err
 	}
