@@ -111,15 +111,21 @@ func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote, fi
         return nil, domain.ErrInternal
     }
 
+
     // 4) Cache the new quote (best-effort)
     cacheKey := util.GenerateCacheKey("quote", created.ID)
     data, _ := util.Serialize(created)
     if err := us.cache.Set(ctx, cacheKey, data, 0); err != nil {
         slog.Warn("cache set failed", "error", err)
     }
-    if err := us.cache.DeleteByPrefix(ctx, "quotes:*"); err != nil {
-        slog.Warn("cache purge failed", "error", err)
-    }
+		err = us.cache.DeleteByPrefix(ctx, "quotes:*")
+		if err != nil {
+			return nil, domain.ErrInternal
+		}
+		err = us.cache.DeleteByPrefix(ctx, "quoteImages:*")
+		if err != nil {
+			return nil, domain.ErrInternal
+		}
 
     // 5) Notify admins (best-effort)
     emails, err := us.user.GetAdminsEmails(ctx)
@@ -141,47 +147,73 @@ func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote, fi
         slog.Warn("could not fetch admin emails", "error", err)
     }
 
-		err = us.cache.DeleteByPrefix(ctx, "quotes:*")
-		if err != nil {
-			return nil, domain.ErrInternal
-		}
-
     return created, nil
 }
 
 // GetQuote gets a quote by ID
-func (us *QuoteService) GetQuote(ctx context.Context, id uuid.UUID) (*domain.Quote,  error) {
+func (us *QuoteService) GetQuote(ctx context.Context, id uuid.UUID) (*domain.Quote, []domain.QuoteImage, error) {
 	var quote *domain.Quote
 
-	cacheKey := util.GenerateCacheKey("quote", id)
+	cacheKey:= util.GenerateCacheKey("quote", id)
+	cacheKeyQuoteImage := util.GenerateCacheKey("quoteImages", id)
 	cachedQuote, err := us.cache.Get(ctx, cacheKey)
 	if err == nil {
 		err := util.Deserialize(cachedQuote, &quote)
 		if err != nil {
-			return nil, domain.ErrInternal
+			return nil, nil, domain.ErrInternal
 		}
-		return quote, nil
+
+		var images []domain.QuoteImage
+
+		cachedImages, err := us.cache.Get(ctx, cacheKeyQuoteImage)
+		if err == nil {
+			err := util.Deserialize(cachedImages, images)
+			if err != nil {
+				return nil, nil, domain.ErrInternal
+			}
+		}
+
+		return quote, images, nil
 	}
+
+	//
 
 	quote, err = us.repo.GetQuoteByID(ctx, id)
 	if err != nil {
 		if err == domain.ErrDataNotFound {
-			return nil, err
+			return nil, nil, err
 		}
-		return nil, domain.ErrInternal
+		return nil, nil, domain.ErrInternal
 	}
 
 	quoteSerialized, err := util.Serialize(quote)
 	if err != nil {
-		return nil, domain.ErrInternal
+		return nil, nil, domain.ErrInternal
 	}
 
 	err = us.cache.Set(ctx, cacheKey, quoteSerialized, 0)
 	if err != nil {
-		return nil, domain.ErrInternal
+		return nil, nil, domain.ErrInternal
 	}
 
-	return quote, nil
+	//
+
+	images, err := us.quoteImage.GetQuoteImages(ctx, 1, 10, domain.QuoteImageFilters{QuoteID: &quote.ID})
+	if err != nil {
+		return nil, nil, domain.ErrInternal
+	}
+
+	quoteImageSerialized, err := util.Serialize(images)
+	if err != nil {
+		return nil, nil, domain.ErrInternal
+	}
+
+	err = us.cache.Set(ctx, cacheKeyQuoteImage, quoteImageSerialized, 0)
+	if err != nil {
+		return nil, nil, domain.ErrInternal
+	}
+
+	return quote, images, nil
 }
 
 // ListQuotes lists all quotes
@@ -279,6 +311,11 @@ func (us *QuoteService) UpdateQuote(ctx context.Context, quote *domain.Quote) (*
 	if err != nil {
 		return nil, domain.ErrInternal
 	}
+	err = us.cache.DeleteByPrefix(ctx, "quoteImages:*")
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
+
 
 	return quote, nil
 }
@@ -304,6 +341,11 @@ func (us *QuoteService) DeleteQuote(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return domain.ErrInternal
 	}
+	err = us.cache.DeleteByPrefix(ctx, "quoteImages:*")
+	if err != nil {
+		return domain.ErrInternal
+	}
+
 
 	return us.repo.DeleteQuote(ctx, id)
 }

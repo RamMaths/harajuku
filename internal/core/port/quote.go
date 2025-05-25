@@ -31,7 +31,7 @@ type QuoteService interface {
 	// Creates a new quote
 	CreateQuote(ctx context.Context, quote *domain.Quote, file []byte, fileName string) (*domain.Quote, error)
 	// GetQuote returns a quote by id
-	GetQuote(ctx context.Context, id uuid.UUID) (*domain.Quote, error)
+	GetQuote(ctx context.Context, id uuid.UUID) (*domain.Quote, []domain.QuoteImage, error)
 	// ListQuotes returns a list of quotes with pagination
 	ListQuotes(ctx context.Context, skip, limit uint64) ([]domain.Quote, error)
 	// UpdateQuote updates a quote
