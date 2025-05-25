@@ -19,7 +19,7 @@ const (
 type Appointment struct {
 	ID            uuid.UUID
 	UserID       	uuid.UUID
-	SlotId     		uuid.UUID
-	QuoteId       uuid.UUID
+	SlotID     		uuid.UUID
+	QuoteID       uuid.UUID
   Status      	AppointmentStatus
 }

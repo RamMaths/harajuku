@@ -31,6 +31,7 @@ func NewRouter(
 	quoteHandler QuoteHandler,
 	typeOfServiceHandler TypeOfServiceHandler,
 	availabilitySlotHandler AvailabilitySlotHandler,
+	appointmentHandler AppointmentHandler,
 ) (*Router, error) {
 	// Disable debug mode in production
 	if config.Env == "production" {
@@ -112,6 +113,14 @@ func NewRouter(
 			availabilitySlot.DELETE("", availabilitySlotHandler.DeleteSlot)
 		}
 
+		appointments := v1.Group("/appointments").Use(authMiddleware(token))
+		{
+			appointments.POST("", appointmentHandler.CreateAppointment)
+			appointments.GET("/all", appointmentHandler.ListAppointments)
+			appointments.GET("", appointmentHandler.GetAppointment)
+			appointments.PUT("", appointmentHandler.UpdateAppointment)
+			appointments.DELETE("", appointmentHandler.DeleteAppointment)
+		}
 	}
 
 	return &Router{

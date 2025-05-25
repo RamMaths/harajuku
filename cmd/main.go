@@ -122,6 +122,11 @@ func main() {
 	availabilitySlotService := service.NewAvailabilitySlotService(availabilitySlotRepo, cache)
 	availabilitySlotHandler := http.NewAvailabilitySlotHandler(availabilitySlotService, userService)
 
+	// Appointment
+	appointmentRepo := repository.NewAppointmentRepository(db)
+	appointmentService := service.NewAppointmentService(appointmentRepo, quoteRepo, availabilitySlotRepo, cache)
+	appointmentHandler := http.NewAppointmentHandler(appointmentService, userService)
+
 	// Init router
 	router, err := http.NewRouter(
 		config.HTTP,
@@ -131,6 +136,7 @@ func main() {
 		*quoteHandler,
 		*typeOfServiceHandler,
 		*availabilitySlotHandler,
+		*appointmentHandler,
 	)
 
 	if err != nil {
