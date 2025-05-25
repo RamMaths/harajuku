@@ -5,15 +5,16 @@ import (
 	"harajuku/backend/internal/core/domain"
 
 	"github.com/google/uuid"
+	"go.starlark.net/lib/time"
 )
 
 // AppointmentFilter contiene los filtros para listar Appointments
 type AppointmentFilter struct {
 	CustomerID  *uuid.UUID
-	QuoteId     *uuid.UUID
-	StartDate   *string
-	EndDate   	*string
-	ByState 		*SlotState
+	QuoteID     *uuid.UUID
+	StartDate   *time.Time
+	EndDate   	*time.Time
+	ByState 		*domain.AppointmentStatus
 	Skip    		uint64
 	Limit   		uint64
 }

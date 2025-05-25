@@ -100,7 +100,8 @@ func (as *AvailabilitySlotService) ListAvailabilitySlots(ctx context.Context, fi
 
 	params := util.GenerateCacheKeyParams(
 		filter.UserID,
-		filter.Month,
+		filter.StartDate,
+		filter.EndDate,
 		filter.ByState,
 		filter.Skip,
 		filter.Limit,
