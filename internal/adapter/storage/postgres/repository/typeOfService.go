@@ -1,7 +1,8 @@
-package postgres
+package repository
 
 import (
 	"context"
+	"harajuku/backend/internal/adapter/storage/postgres"
 	"harajuku/backend/internal/core/domain"
 	"log/slog"
 
@@ -11,10 +12,10 @@ import (
 )
 
 type TypeOfServiceRepository struct {
-	db *DB
+	db *postgres.DB
 }
 
-func NewTypeOfServiceRepository(db *DB) *TypeOfServiceRepository {
+func NewTypeOfServiceRepository(db *postgres.DB) *TypeOfServiceRepository {
 	return &TypeOfServiceRepository{
 		db,
 	}
@@ -32,7 +33,7 @@ func (r *TypeOfServiceRepository) CreateTypeOfService(ctx context.Context, servi
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&service.ID)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&service.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +55,7 @@ func (r *TypeOfServiceRepository) GetTypeOfServiceByID(ctx context.Context, id u
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&s.ID, &s.Name, &s.Price)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&s.ID, &s.Name, &s.Price)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, domain.ErrDataNotFound
@@ -81,7 +82,7 @@ func (r *TypeOfServiceRepository) ListTypeOfServices(ctx context.Context, skip, 
 
 	slog.DebugContext(ctx, "Executing query", "sql", sql, "args", args)
 
-	rows, err := r.db.Query(ctx, sql, args...)
+	rows, err := r.db.Conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +116,7 @@ func (r *TypeOfServiceRepository) UpdateTypeOfService(ctx context.Context, servi
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&service.ID, &service.Name, &service.Price)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&service.ID, &service.Name, &service.Price)
 	if err != nil {
 		return nil, err
 	}
@@ -133,6 +134,6 @@ func (r *TypeOfServiceRepository) DeleteTypeOfService(ctx context.Context, id uu
 		return err
 	}
 
-	_, err = r.db.Exec(ctx, sql, args...)
+	_, err = r.db.Conn.Exec(ctx, sql, args...)
 	return err
 }

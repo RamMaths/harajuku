@@ -105,19 +105,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Quote
-	quoteRepo := postgres.NewQuoteRepository(db)
-	quoteImageRepo := repository.NewQuoteImageRepository(db)
-	quoteService := service.NewQuoteService(quoteRepo, s3, userRepo, email, quoteImageRepo, cache)
-	quoteHandler := http.NewQuoteHandler(quoteService)
-
 	// TypeOfService
-	typeOfServiceRepo := postgres.NewTypeOfServiceRepository(db)
+	typeOfServiceRepo := repository.NewTypeOfServiceRepository(db)
 	typeOfServiceService := service.NewTypeOfServiceService(typeOfServiceRepo, cache)
 	typeOfServiceHandler := http.NewTypeOfServiceHandler(typeOfServiceService)
 
+
+	// Quote
+	quoteRepo := repository.NewQuoteRepository(db)
+	quoteImageRepo := repository.NewQuoteImageRepository(db)
+	quoteService := service.NewQuoteService(quoteRepo, s3, userRepo, email, quoteImageRepo, typeOfServiceRepo, *db, cache)
+	quoteHandler := http.NewQuoteHandler(quoteService)
+
 	// AvailabilitySlot
-	availabilitySlotRepo := postgres.NewAvailabilitySlotRepository(db)
+	availabilitySlotRepo := repository.NewAvailabilitySlotRepository(db)
 	availabilitySlotService := service.NewAvailabilitySlotService(availabilitySlotRepo, cache)
 	availabilitySlotHandler := http.NewAvailabilitySlotHandler(availabilitySlotService, userService)
 

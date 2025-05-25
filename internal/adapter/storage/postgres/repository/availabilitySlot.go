@@ -1,8 +1,9 @@
-package postgres
+package repository
 
 import (
 	"context"
 	"fmt"
+	"harajuku/backend/internal/adapter/storage/postgres"
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
 	"log"
@@ -16,10 +17,10 @@ import (
 )
 
 type AvailabilitySlotRepository struct {
-	db *DB
+	db *postgres.DB
 }
 
-func NewAvailabilitySlotRepository(db *DB) *AvailabilitySlotRepository {
+func NewAvailabilitySlotRepository(db *postgres.DB) *AvailabilitySlotRepository {
 	return &AvailabilitySlotRepository{
 		db,
 	}
@@ -37,7 +38,7 @@ func (r *AvailabilitySlotRepository) CreateAvailabilitySlot(ctx context.Context,
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&slot.ID)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&slot.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +60,7 @@ func (r *AvailabilitySlotRepository) GetAvailabilitySlotByID(ctx context.Context
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&slot.ID, &slot.AdminID, &slot.StartTime, &slot.EndTime, &slot.IsBooked)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&slot.ID, &slot.AdminID, &slot.StartTime, &slot.EndTime, &slot.IsBooked)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, domain.ErrDataNotFound
@@ -162,7 +163,7 @@ func (r *AvailabilitySlotRepository) ListAvailabilitySlots(ctx context.Context, 
 	log.Printf("SQL generado: %s", sql)
 	log.Printf("Parámetros SQL: %v", args)
 
-	rows, err := r.db.Query(ctx, sql, args...)
+	rows, err := r.db.Conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, fmt.Errorf("error al ejecutar consulta: %w", err)
 	}
@@ -205,7 +206,7 @@ func (r *AvailabilitySlotRepository) UpdateAvailabilitySlot(ctx context.Context,
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&slot.ID, &slot.AdminID, &slot.StartTime, &slot.EndTime, &slot.IsBooked)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&slot.ID, &slot.AdminID, &slot.StartTime, &slot.EndTime, &slot.IsBooked)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +224,7 @@ func (r *AvailabilitySlotRepository) DeleteAvailabilitySlot(ctx context.Context,
 		return err
 	}
 
-	_, err = r.db.Exec(ctx, sql, args...)
+	_, err = r.db.Conn.Exec(ctx, sql, args...)
 	if err != nil {
 		return err
 	}

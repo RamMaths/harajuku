@@ -4,6 +4,7 @@ import (
 	"context"
 	"harajuku/backend/internal/adapter/storage/postgres"
 	"harajuku/backend/internal/core/domain"
+	"harajuku/backend/internal/core/port"
 	"log/slog"
 
 	sq "github.com/Masterminds/squirrel"
@@ -35,7 +36,7 @@ func (r *QuoteImageRepository) CreateQuoteImage(ctx context.Context, quoteImage 
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(
 		&quoteImage.ID,
 		&quoteImage.QuoteID,
 		&quoteImage.URL,
@@ -61,7 +62,7 @@ func (r *QuoteImageRepository) GetQuoteImageByID(ctx context.Context, id uuid.UU
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(
 		&quoteImage.ID,
 		&quoteImage.QuoteID,
 		&quoteImage.URL,
@@ -102,7 +103,7 @@ func (r *QuoteImageRepository) GetQuoteImages(ctx context.Context, skip, limit u
 		"args", args,
 		"filters", filters)
 
-	rows, err := r.db.Query(ctx, sql, args...)
+	rows, err := r.db.Conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +138,7 @@ func (r *QuoteImageRepository) UpdateQuoteImage(ctx context.Context, quoteImage 
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(
 		&quoteImage.ID,
 		&quoteImage.QuoteID,
 		&quoteImage.URL,
@@ -159,10 +160,20 @@ func (r *QuoteImageRepository) DeleteQuoteImage(ctx context.Context, id uuid.UUI
 		return err
 	}
 
-	_, err = r.db.Exec(ctx, sql, args...)
+	_, err = r.db.Conn.Exec(ctx, sql, args...)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (r *QuoteImageRepository) WithTx(
+    ctx context.Context,
+    fn func(repo port.QuoteImageRepository) error,
+) error {
+    return r.db.WithTx(ctx, func(txDB *postgres.DB) error {
+        txRepo := NewQuoteImageRepository(txDB)
+        return fn(txRepo)
+    })
 }
