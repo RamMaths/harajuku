@@ -16,6 +16,7 @@ import (
 type TestDBContainer struct {
 	URI      string
 	Teardown func()
+	PORT 		 string
 }
 
 func SetupTestDB(t *testing.T) *TestDBContainer {
@@ -24,11 +25,15 @@ func SetupTestDB(t *testing.T) *TestDBContainer {
 	ctx := context.Background()
 
 	// Get an available host port
-  hostPort := "5435"
+  hostPort, err := getAvailablePort()
+
+	if err != nil {
+		t.Fatalf("failed to get an available port: %v", err)
+	}
 
 	req := testcontainers.ContainerRequest{
 		Image:        "postgres:15-alpine",
-		ExposedPorts: []string{"5432/tcp"},
+		ExposedPorts: []string{fmt.Sprintf("%s/tcp", hostPort)},
 		Env: map[string]string{
 			"POSTGRES_PASSWORD": "secret",
 			"POSTGRES_USER":     "user",
@@ -62,6 +67,7 @@ func SetupTestDB(t *testing.T) *TestDBContainer {
 		Teardown: func() {
 			_ = container.Terminate(ctx)
 		},
+		PORT: hostPort,
 	}
 }
 
