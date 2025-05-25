@@ -106,10 +106,10 @@ func NewRouter(
 
 		availabilitySlot := v1.Group("/availabilityslots").Use(authMiddleware(token))
 		{
-			availabilitySlot.POST("/", availabilitySlotHandler.CreateSlot)
-			availabilitySlot.GET("/", availabilitySlotHandler.ListSlots)
-			availabilitySlot.PUT("/:id", availabilitySlotHandler.UpdateSlot)
-			availabilitySlot.DELETE("/", availabilitySlotHandler.DeleteSlot)
+			availabilitySlot.POST("", availabilitySlotHandler.CreateSlot)
+			availabilitySlot.GET("", availabilitySlotHandler.ListSlots)
+			availabilitySlot.PUT("", availabilitySlotHandler.UpdateSlot)
+			availabilitySlot.DELETE("", availabilitySlotHandler.DeleteSlot)
 		}
 
 	}

@@ -7,9 +7,6 @@ import (
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
 	"log"
-	"strconv"
-	"strings"
-	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
@@ -99,34 +96,13 @@ func (r *AvailabilitySlotRepository) ListAvailabilitySlots(ctx context.Context, 
 		query = query.Where(sq.Eq{`"AvailabilitySlot"."adminId"`: *filter.UserID})
 	}
 
-	// Filtro por mes
-	if filter.Month != nil {
-		if _, err := time.Parse("2006-01", *filter.Month); err != nil {
-			return nil, fmt.Errorf("formato de mes debe ser YYYY-MM")
-		}
+	// Filter by AvailabilitySlot.startTime
+	if filter.StartDate != nil {
+			query = query.Where(sq.GtOrEq{`"AvailabilitySlot"."startTime"`: *filter.StartDate})
+	}
 
-		parts := strings.Split(*filter.Month, "-")
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("formato de mes inválido")
-		}
-
-		year, err := strconv.Atoi(parts[0])
-		if err != nil {
-			return nil, fmt.Errorf("año inválido")
-		}
-
-		month, err := strconv.Atoi(parts[1])
-		if err != nil || month < 1 || month > 12 {
-			return nil, fmt.Errorf("mes inválido")
-		}
-
-		// Corrección clave: Usar And() para combinar ambas condiciones
-		query = query.Where(
-			sq.And{
-				sq.Expr(`EXTRACT(YEAR FROM "AvailabilitySlot"."startTime") = ?`, year),
-				sq.Expr(`EXTRACT(MONTH FROM "AvailabilitySlot"."startTime") = ?`, month),
-			},
-		)
+	if filter.EndDate != nil {
+			query = query.Where(sq.LtOrEq{`"AvailabilitySlot"."startTime"`: *filter.EndDate})
 	}
 
 	// Filtro por estado
@@ -140,7 +116,7 @@ func (r *AvailabilitySlotRepository) ListAvailabilitySlots(ctx context.Context, 
 					// Slots sin appointment asociado
 					sq.Expr(`"Appointment"."id" IS NULL`),
 					// Slots con appointment en estado 'needs_review'
-					sq.Eq{`"Appointment"."status"`: "needs_review"},
+					sq.Eq{`"Appointment"."status"`: "pending"},
 				}).
 				// Asegurar que no estén marcados como booked
 				Where(sq.Eq{`"AvailabilitySlot"."isBooked"`: false})

@@ -3,6 +3,7 @@ package port
 import (
 	"context"
 	"harajuku/backend/internal/core/domain"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -19,7 +20,8 @@ const (
 // AvailabilitySlotFilter contiene los filtros para listar AvailabilitySlots
 type AvailabilitySlotFilter struct {
 	UserID  *uuid.UUID
-	Month   *string
+	StartDate   *time.Time
+	EndDate   	*time.Time
 	ByState *SlotState
 	Skip    uint64
 	Limit   uint64

@@ -88,6 +88,11 @@ func (r *AppointmentRepository) ListAppointments(ctx context.Context, filter por
 		query = query.Where(sq.Eq{"Appointment.clientId": *filter.CustomerID})
 	}
 
+	// Filter by Quote ID
+	if filter.QuoteID != nil {
+		query = query.Where(sq.Eq{"Appointment.quoteId": *filter.QuoteID})
+	}
+
 	// Filter by Appointment status
 	if filter.ByState != nil {
 		query = query.Where(sq.Eq{"Appointment.status": *filter.ByState})
@@ -95,10 +100,11 @@ func (r *AppointmentRepository) ListAppointments(ctx context.Context, filter por
 
 	// Filter by AvailabilitySlot.startTime
 	if filter.StartDate != nil {
-		query = query.Where(sq.GtOrEq{"AvailabilitySlot.startTime": *filter.StartDate})
+			query = query.Where(sq.GtOrEq{`"AvailabilitySlot"."startTime"`: *filter.StartDate})
 	}
+
 	if filter.EndDate != nil {
-		query = query.Where(sq.LtOrEq{"AvailabilitySlot.startTime": *filter.EndDate})
+			query = query.Where(sq.LtOrEq{`"AvailabilitySlot"."startTime"`: *filter.EndDate})
 	}
 
 	// Pagination

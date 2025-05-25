@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -47,10 +48,6 @@ func newAvailabilitySlotResponse(slot *domain.AvailabilitySlot) *availabilitySlo
 
 func (h *AvailabilitySlotHandler) CreateSlot(ctx *gin.Context) {
 	auth := getAuthPayload(ctx, authorizationPayloadKey)
-	if auth == nil || auth.Role != "admin" {
-		handleError(ctx, domain.ErrUnauthorized)
-		return
-	}
 
 	var req createAvailabilitySlotRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -93,11 +90,11 @@ func (h *AvailabilitySlotHandler) CreateSlot(ctx *gin.Context) {
 }
 
 type listAvailabilitySlotRequest struct {
-	UserID string `form:"userId"` // No es required
-	Month  string `form:"month"`  // No es required
-	State  string `form:"state"`  // No es required (antes era IsBooked *bool)
-	Skip   uint64 `form:"skip" binding:"required,min=0"`
-	Limit  uint64 `form:"limit" binding:"required,min=5"`
+	StartDate  string `form:"start_date"`  // No es required
+	EndDate  	 string `form:"end_date"`  // No es required
+	State  		 string `form:"state"`  // No es required (antes era IsBooked *bool)
+	Skip   		 uint64 `form:"skip" binding:"required,min=0"`
+	Limit  		 uint64 `form:"limit" binding:"required,min=5"`
 }
 
 func (h *AvailabilitySlotHandler) ListSlots(ctx *gin.Context) {
@@ -107,41 +104,30 @@ func (h *AvailabilitySlotHandler) ListSlots(ctx *gin.Context) {
 		return
 	}
 
-	auth := getAuthPayload(ctx, authorizationPayloadKey)
-	if auth == nil {
-		handleError(ctx, domain.ErrUnauthorized)
-		return
-	}
+	var (
+		startDate *time.Time
+		endDate   *time.Time
+		err       error
+	)
 
-	// Parsear UserID si viene en la solicitud
-	var userID *uuid.UUID
-	if req.UserID != "" {
-		uid, err := uuid.Parse(req.UserID)
+	// Parse StartDate
+	if req.StartDate != "" {
+		t, err := time.Parse(time.RFC3339, req.StartDate)
 		if err != nil {
-			validationError(ctx, fmt.Errorf("invalid userId format"))
+			validationError(ctx, fmt.Errorf("invalid start_date format (must be RFC3339)"))
 			return
 		}
-
-		// Verificar permisos si el UserID no coincide con el usuario autenticado
-		if uid != auth.UserID {
-			user, err := h.userService.GetUser(ctx, auth.UserID)
-			if err != nil {
-				handleError(ctx, err)
-				return
-			}
-			if user.Role != "admin" {
-				handleError(ctx, domain.ErrUnauthorized)
-				return
-			}
-		}
-		userID = &uid
+		startDate = &t
 	}
-	// Validar formato del mes si viene
-	if req.Month != "" {
-		if _, err := time.Parse("2006-01", req.Month); err != nil {
-			validationError(ctx, fmt.Errorf("invalid month format, expected YYYY-MM"))
+
+	// Parse EndDate
+	if req.EndDate != "" {
+		t, err := time.Parse(time.RFC3339, req.EndDate)
+		if err != nil {
+			validationError(ctx, fmt.Errorf("invalid end_date format (must be RFC3339)"))
 			return
 		}
+		endDate = &t
 	}
 
 	// Convertir el estado string a SlotState
@@ -155,13 +141,13 @@ func (h *AvailabilitySlotHandler) ListSlots(ctx *gin.Context) {
 		state = &s
 	}
 
-	// Construir el filtro
+	// Construir el filtro con *time.Time
 	filter := port.AvailabilitySlotFilter{
-		UserID:  userID,
-		Month:   nilIfEmpty(req.Month),
-		ByState: state,
-		Skip:    req.Skip,
-		Limit:   req.Limit,
+		StartDate: startDate,
+		EndDate:   endDate,
+		ByState:   state,
+		Skip:      req.Skip,
+		Limit:     req.Limit,
 	}
 
 	// Obtener los slots
@@ -195,21 +181,17 @@ type updateAvailabilitySlotRequest struct {
 }
 
 func (h *AvailabilitySlotHandler) UpdateSlot(ctx *gin.Context) {
-	auth := getAuthPayload(ctx, authorizationPayloadKey)
-	if auth == nil || auth.Role != "admin" {
-		handleError(ctx, domain.ErrUnauthorized)
+	id := ctx.DefaultQuery("id", "")
+
+	if id == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID parameter is required"})
 		return
 	}
 
-	idStr := ctx.Param("id")
-	if idStr == "" {
-		validationError(ctx, fmt.Errorf("id is required"))
-		return
-	}
+	slotId, err := uuid.Parse(id)
 
-	slotID, err := uuid.Parse(idStr)
 	if err != nil {
-		validationError(ctx, fmt.Errorf("invalid id format"))
+		handleError(ctx, err)
 		return
 	}
 
@@ -236,14 +218,9 @@ func (h *AvailabilitySlotHandler) UpdateSlot(ctx *gin.Context) {
 		return
 	}
 
-	slot, err := h.svc.GetAvailabilitySlot(ctx, slotID)
+	slot, err := h.svc.GetAvailabilitySlot(ctx, slotId)
 	if err != nil {
 		handleError(ctx, err)
-		return
-	}
-
-	if slot.AdminID != auth.UserID {
-		handleError(ctx, domain.ErrUnauthorized)
 		return
 	}
 
@@ -260,19 +237,14 @@ func (h *AvailabilitySlotHandler) UpdateSlot(ctx *gin.Context) {
 }
 
 func (h *AvailabilitySlotHandler) DeleteSlot(ctx *gin.Context) {
-	auth := getAuthPayload(ctx, authorizationPayloadKey)
-	if auth == nil || auth.Role != "admin" {
-		handleError(ctx, domain.ErrUnauthorized)
+	id := ctx.DefaultQuery("id", "")
+
+	if id == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "ID parameter is required"})
 		return
 	}
 
-	idStr := ctx.DefaultQuery("id", "")
-	if idStr == "" {
-		validationError(ctx, fmt.Errorf("id is required"))
-		return
-	}
-
-	slotID, err := uuid.Parse(idStr)
+	slotID, err := uuid.Parse(id)
 	if err != nil {
 		validationError(ctx, fmt.Errorf("invalid id format"))
 		return
@@ -286,11 +258,6 @@ func (h *AvailabilitySlotHandler) DeleteSlot(ctx *gin.Context) {
 
 	if slot.IsBooked {
 		handleError(ctx, fmt.Errorf("cannot delete a booked slot"))
-		return
-	}
-
-	if slot.AdminID != auth.UserID {
-		handleError(ctx, domain.ErrUnauthorized)
 		return
 	}
 
