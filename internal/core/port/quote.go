@@ -22,6 +22,8 @@ type QuoteRepository interface {
 	UpdateQuote(ctx context.Context, user *domain.Quote) (*domain.Quote, error)
 	// DeleteQuote deletes a quote
 	DeleteQuote(ctx context.Context, id uuid.UUID) error
+  // Wrap a function in a DB transaction; if fn returns an error, rollback
+  WithTx(ctx context.Context, fn func(repo QuoteRepository) error) error
 }
 
 // QuoteService is an interface for interacting with quote-related business logic

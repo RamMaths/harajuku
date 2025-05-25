@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"harajuku/backend/internal/adapter/storage/postgres"
+	"harajuku/backend/internal/adapter/storage/postgres/repository"
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
 	"harajuku/backend/internal/core/util"
@@ -19,116 +21,136 @@ import (
  * and cache service
  */
 type QuoteService struct {
-	repo       port.QuoteRepository
-	file       port.FileRepository
-	user       port.UserRepository
-	email      port.EmailRepository
-	quoteImage port.QuoteImageRepository
-	cache      port.CacheRepository
+	repo       			port.QuoteRepository
+	file       			port.FileRepository
+	user       			port.UserRepository
+	email      			port.EmailRepository
+	quoteImage 			port.QuoteImageRepository
+	typeOfService 	port.TypeOfServiceRepository
+	db 							postgres.DB
+	cache      			port.CacheRepository
 }
 
 // NewQuoteService creates a new quote service instance
-func NewQuoteService(repo port.QuoteRepository, file port.FileRepository, user port.UserRepository, email port.EmailRepository, quoteImage port.QuoteImageRepository, cache port.CacheRepository) *QuoteService {
+func NewQuoteService(
+	repo port.QuoteRepository,
+	file port.FileRepository,
+	user port.UserRepository,
+	email port.EmailRepository,
+	quoteImage port.QuoteImageRepository,
+	typeOfService port.TypeOfServiceRepository,
+	db postgres.DB,
+	cache port.CacheRepository,
+) *QuoteService {
 	return &QuoteService{
 		repo,
 		file,
 		user,
 		email,
 		quoteImage,
+		typeOfService,
+		db,
 		cache,
 	}
 }
 
 // Register creates a new quote
 func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote, file []byte, fileName string) (*domain.Quote, error) {
+		// 1) Validate IDs
+		_, err := us.typeOfService.GetTypeOfServiceByID(ctx, quote.TypeOfServiceID)
 
-	// QuoteRepository
-
-	quote, err := us.repo.CreateQuote(ctx, quote)
-
-	if err != nil {
-		slog.Error("Quote registration failed", "error", err)
-		if err == domain.ErrConflictingData {
-			return nil, err
+		if err != nil {
+			return nil, domain.ErrDataNotFound
 		}
-		return nil, domain.ErrInternal
-	}
 
-	// Cache
+		_, err = us.user.GetUserByID(ctx, quote.ClientID)
 
-	cacheKey := util.GenerateCacheKey("quote", quote.ID)
-	quoteSerialized, err := util.Serialize(quote)
-	if err != nil {
-		return nil, domain.ErrInternal
-	}
+		if err != nil {
+			return nil, domain.ErrDataNotFound
+		}
 
-	err = us.cache.Set(ctx, cacheKey, quoteSerialized, 0)
-	if err != nil {
-		return nil, domain.ErrInternal
-	}
+		// 2) Upload the image first. Fail fast if this errors.
+    path, err := us.file.Save(ctx, file, fileName)
+    if err != nil {
+        slog.Error("file save failed", "error", err)
+        return nil, domain.ErrInternal
+    }
 
-	err = us.cache.DeleteByPrefix(ctx, "quotes:*")
-	if err != nil {
-		return nil, domain.ErrInternal
-	}
+    // 3) Atomic DB transaction: create quote + image row
+    var created *domain.Quote
 
-	// Handle File Saving
+		err = us.db.WithTx(ctx, func(txDB *postgres.DB) error {
+			// build both repos on txDB
+			txQuoteRepo := repository.NewQuoteRepository(txDB)
+			txImageRepo := repository.NewQuoteImageRepository(txDB)
 
-	path, err := us.file.Save(ctx, file, fileName)
+			// insert quote
+			q, err := txQuoteRepo.CreateQuote(ctx, quote)
+			if err != nil {
+				return err
+			}
+			created = q
 
-	if err != nil {
-		return nil, domain.ErrInternal
-	}
+			// insert image in *same* tx
+			_, err = txImageRepo.CreateQuoteImage(ctx, &domain.QuoteImage{
+				ID:      uuid.New(),
+				QuoteID: created.ID,
+				URL:     path,
+			})
+			return err
+		})
+   
+    if err != nil {
+        slog.Error("transaction failed", "error", err)
+				err := us.file.Delete(ctx, path)
+				if err != nil {
+					slog.Error("deleting file failed", "error", err)
+					return nil, domain.ErrInternal
+				}
 
-	// QuoteImage Repository
+        return nil, domain.ErrInternal
+    }
 
-	_, err = us.quoteImage.CreateQuoteImage(ctx, &domain.QuoteImage{
-		ID:      uuid.New(),
-		QuoteID: quote.ID,
-		URL:     path,
-	})
+    // 4) Cache the new quote (best-effort)
+    cacheKey := util.GenerateCacheKey("quote", created.ID)
+    data, _ := util.Serialize(created)
+    if err := us.cache.Set(ctx, cacheKey, data, 0); err != nil {
+        slog.Warn("cache set failed", "error", err)
+    }
+    if err := us.cache.DeleteByPrefix(ctx, "quotes:*"); err != nil {
+        slog.Warn("cache purge failed", "error", err)
+    }
 
-	if err != nil {
-		return nil, domain.ErrInternal
-	}
+    // 5) Notify admins (best-effort)
+    emails, err := us.user.GetAdminsEmails(ctx)
+    if err == nil {
+        client, _ := us.user.GetUserByID(ctx, created.ClientID)
+        if err := us.email.SendEmail(
+            ctx,
+            emails,
+            "Se ha creado una nueva cotización",
+            fmt.Sprintf(
+                "Una nueva cotización se ha creado\n\tid: %s\n\tDescripción: %s\n\tCliente: %s %s",
+                created.ID, created.Description, client.Name, client.LastName,
+            ),
+            "",
+        ); err != nil {
+            slog.Warn("email send failed", "quote_id", created.ID, "error", err)
+        }
+    } else {
+        slog.Warn("could not fetch admin emails", "error", err)
+    }
 
-	// Send email
+		err = us.cache.DeleteByPrefix(ctx, "quotes:*")
+		if err != nil {
+			return nil, domain.ErrInternal
+		}
 
-	emails, err := us.user.GetAdminsEmails(ctx)
-
-	if err != nil {
-		return nil, domain.ErrInternal
-	}
-
-	client, err := us.user.GetUserByID(ctx, quote.ClientID)
-
-	err = us.email.SendEmail(
-		ctx,
-		emails,
-		"Se ha creado una nueva cotización",
-		fmt.Sprintf(
-			"Una nueva cotización se ha creado\n\t\tid: %s\n\t\tDescripción: %s\n\t\tCliente: %s %s",
-			quote.ID.String(),
-			quote.Description,
-			client.Name,
-			client.LastName,
-		),
-		"",
-	)
-
-	if err != nil {
-		// Log detailed error and continue since email failure doesn't block quote creation
-		slog.Error("failed to send email notification for quote %s: %v", quote.ID.String(), err)
-		return nil, domain.ErrInternal
-	}
-
-	// Return the new quote
-
-	return quote, nil
+    return created, nil
 }
 
 // GetQuote gets a quote by ID
-func (us *QuoteService) GetQuote(ctx context.Context, id uuid.UUID) (*domain.Quote, error) {
+func (us *QuoteService) GetQuote(ctx context.Context, id uuid.UUID) (*domain.Quote,  error) {
 	var quote *domain.Quote
 
 	cacheKey := util.GenerateCacheKey("quote", id)

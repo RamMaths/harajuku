@@ -38,7 +38,7 @@ func (ur *UserRepository) CreateUser(ctx context.Context, user *domain.User) (*d
         return nil, err
     }
 
-    err = ur.db.QueryRow(ctx, sql, args...).Scan(
+    err = ur.db.Conn.QueryRow(ctx, sql, args...).Scan(
         &user.ID,
         &user.Name,
         &user.LastName,
@@ -72,7 +72,7 @@ func (ur *UserRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*domai
 		return nil, err
 	}
 
-	err = ur.db.QueryRow(ctx, sql, args...).Scan(
+	err = ur.db.Conn.QueryRow(ctx, sql, args...).Scan(
 		&user.ID,
 		&user.Name,
 		&user.LastName,
@@ -105,7 +105,7 @@ func (ur *UserRepository) GetUserByEmail(ctx context.Context, email string) (*do
 		return nil, err
 	}
 
-	err = ur.db.QueryRow(ctx, sql, args...).Scan(
+	err = ur.db.Conn.QueryRow(ctx, sql, args...).Scan(
     &user.ID,
     &user.Name,
     &user.LastName,
@@ -139,7 +139,7 @@ func (ur *UserRepository) GetAdminsEmails(ctx context.Context) ([]string, error)
         return nil, err
     }
 
-    rows, err := ur.db.Query(ctx, sql, args...)
+    rows, err := ur.db.Conn.Query(ctx, sql, args...)
     if err != nil {
         return nil, err
     }
@@ -195,7 +195,7 @@ func (ur *UserRepository) ListUsers(ctx context.Context, skip, limit uint64, fil
         "args", args,
         "filters", filters)
 
-    rows, err := ur.db.Query(ctx, sql, args...)
+    rows, err := ur.db.Conn.Query(ctx, sql, args...)
     if err != nil {
         return nil, err
     }
@@ -245,7 +245,7 @@ func (ur *UserRepository) UpdateUser(ctx context.Context, user *domain.User) (*d
 		return nil, err
 	}
 
-	err = ur.db.QueryRow(ctx, sql, args...).Scan(
+	err = ur.db.Conn.QueryRow(ctx, sql, args...).Scan(
     &user.ID,
     &user.Name,
     &user.LastName,
@@ -274,7 +274,7 @@ func (ur *UserRepository) DeleteUser(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	_, err = ur.db.Exec(ctx, sql, args...)
+	_, err = ur.db.Conn.Exec(ctx, sql, args...)
 	if err != nil {
 		return err
 	}

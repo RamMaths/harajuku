@@ -1,8 +1,10 @@
-package postgres
+package repository
 
 import (
 	"context"
+	"harajuku/backend/internal/adapter/storage/postgres"
 	"harajuku/backend/internal/core/domain"
+	"harajuku/backend/internal/core/port"
 	"log/slog"
 
 	sq "github.com/Masterminds/squirrel"
@@ -11,10 +13,10 @@ import (
 )
 
 type QuoteRepository struct {
-	db *DB
+	db *postgres.DB
 }
 
-func NewQuoteRepository(db *DB) *QuoteRepository {
+func NewQuoteRepository(db *postgres.DB) *QuoteRepository {
 	return &QuoteRepository{
 		db,
 	}
@@ -32,7 +34,7 @@ func (r *QuoteRepository) CreateQuote(ctx context.Context, quote *domain.Quote) 
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&quote.ID)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&quote.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +56,7 @@ func (r *QuoteRepository) GetQuoteByID(ctx context.Context, id uuid.UUID) (*doma
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&q.ID, &q.TypeOfServiceID, &q.ClientID, &q.Time, &q.Description, &q.State, &q.Price)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&q.ID, &q.TypeOfServiceID, &q.ClientID, &q.Time, &q.Description, &q.State, &q.Price)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, domain.ErrDataNotFound
@@ -82,7 +84,7 @@ func (r *QuoteRepository) ListQuotes(ctx context.Context, skip, limit uint64) ([
 	// Debug logging - crucial for troubleshooting
 	slog.DebugContext(ctx, "Executing query", "sql", sql, "args", args)
 
-	rows, err := r.db.Query(ctx, sql, args...)
+	rows, err := r.db.Conn.Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +122,7 @@ func (r *QuoteRepository) UpdateQuote(ctx context.Context, quote *domain.Quote) 
 		return nil, err
 	}
 
-	err = r.db.QueryRow(ctx, sql, args...).Scan(&quote.ID, &quote.TypeOfServiceID, &quote.ClientID, &quote.Time, &quote.Description, &quote.State, &quote.Price)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&quote.ID, &quote.TypeOfServiceID, &quote.ClientID, &quote.Time, &quote.Description, &quote.State, &quote.Price)
 	if err != nil {
 		return nil, err
 	}
@@ -138,10 +140,20 @@ func (r *QuoteRepository) DeleteQuote(ctx context.Context, id uuid.UUID) error {
 		return err
 	}
 
-	_, err = r.db.Exec(ctx, sql, args...)
+	_, err = r.db.Conn.Exec(ctx, sql, args...)
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (r *QuoteRepository) WithTx(
+    ctx context.Context,
+    fn func(repo port.QuoteRepository) error,
+) error {
+    return r.db.WithTx(ctx, func(txDB *postgres.DB) error {
+        txRepo := NewQuoteRepository(txDB)
+        return fn(txRepo)
+    })
 }
