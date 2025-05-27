@@ -3,14 +3,15 @@ package repository
 import (
 	"context"
 	"fmt"
+	"harajuku/backend/internal/adapter/storage/postgres"
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
-	"harajuku/backend/internal/adapter/storage/postgres"
 	"log"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type AppointmentRepository struct {
@@ -27,15 +28,20 @@ func NewAppointmentRepository(db *postgres.DB) *AppointmentRepository {
 func (r *AppointmentRepository) CreateAppointment(ctx context.Context, appointment *domain.Appointment) (*domain.Appointment, error) {
 	query := r.db.QueryBuilder.Insert("\"Appointment\""). // Ajustar el nombre de la tabla si es necesario
 									Columns("id", "\"clientId\"", "\"slotId\"", "\"quoteId\"", "\"status\"").
-									Values(appointment.ID, appointment.UserID, appointment.SlotId, appointment.QuoteId, appointment.Status).
+									Values(appointment.ID, appointment.UserID, appointment.SlotID, appointment.QuoteID, appointment.Status).
 									Suffix("RETURNING id")
 
 	sql, args, err := query.ToSql()
-	if err != nil { return nil, err
+	if err != nil { 
+		return nil, err
 	}
 
 	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&appointment.ID)
 	if err != nil {
+		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
+					// You might also inspect pgErr.Constraint to be extra sure it’s the quoteId constraint
+					return nil, domain.ErrConflictingData
+			}
 		return nil, err
 	}
 
@@ -56,7 +62,7 @@ func (r *AppointmentRepository) GetAppointmentByID(ctx context.Context, id uuid.
 		return nil, err
 	}
 
-	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&appointment.ID, &appointment.UserID, &appointment.SlotId, &appointment.QuoteId, &appointment.Status)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&appointment.ID, &appointment.UserID, &appointment.SlotID, &appointment.QuoteID, &appointment.Status)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, domain.ErrDataNotFound
@@ -107,18 +113,20 @@ func (r *AppointmentRepository) ListAppointments(ctx context.Context, filter por
 			query = query.Where(sq.LtOrEq{`"AvailabilitySlot"."startTime"`: *filter.EndDate})
 	}
 
-	// Pagination
+	// Paginación (skip = número de página - 1)
 	if filter.Limit > 0 {
-		query = query.Limit(filter.Limit)
-	}
-	if filter.Skip > 0 {
-		query = query.Offset(filter.Skip)
+		offset := ((filter.Skip - 1) * filter.Limit)
+		log.Printf("Configurando paginación - Limit: %d, Offset: %d", filter.Limit, offset)
+		query = query.Limit(filter.Limit).Offset(offset)
 	}
 
 	sql, args, err := query.ToSql()
 	if err != nil {
 		return nil, fmt.Errorf("error building query: %w", err)
 	}
+
+	log.Printf("SQL generado: %s", sql)
+	log.Printf("Parámetros SQL: %v", args)
 
 	rows, err := r.db.Conn.Query(ctx, sql, args...)
 	if err != nil {
@@ -131,8 +139,8 @@ func (r *AppointmentRepository) ListAppointments(ctx context.Context, filter por
 		if err := rows.Scan(
 			&appointment.ID,
 			&appointment.UserID,
-			&appointment.SlotId,
-			&appointment.QuoteId,
+			&appointment.SlotID,
+			&appointment.QuoteID,
 			&appointment.Status,
 		); err != nil {
 			return nil, fmt.Errorf("Error while reading data: %w", err)
@@ -151,8 +159,8 @@ func (r *AppointmentRepository) ListAppointments(ctx context.Context, filter por
 func (r *AppointmentRepository) UpdateAppointment(ctx context.Context, appointment *domain.Appointment) (*domain.Appointment, error) {
 	query := r.db.QueryBuilder.Update("\"Appointment\"").
 		Set("\"clientId\"", appointment.UserID).
-		Set("\"slotId\"", appointment.SlotId).
-		Set("\"quoteId\"", appointment.QuoteId).
+		Set("\"slotId\"", appointment.SlotID).
+		Set("\"quoteId\"", appointment.QuoteID).
 		Set("\"status\"", appointment.Status).
 		Where(sq.Eq{"id": appointment.ID}).
 		Suffix("RETURNING *")
@@ -162,7 +170,7 @@ func (r *AppointmentRepository) UpdateAppointment(ctx context.Context, appointme
 		return nil, err
 	}
 
-	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&appointment.ID, &appointment.UserID, &appointment.SlotId, &appointment.QuoteId, &appointment.Status)
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&appointment.ID, &appointment.UserID, &appointment.SlotID, &appointment.QuoteID, &appointment.Status)
 	if err != nil {
 		return nil, err
 	}

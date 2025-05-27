@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log"
 	"log/slog"
 
 	"harajuku/backend/internal/core/domain"
@@ -15,13 +16,17 @@ import (
 // y proporciona acceso al repositorio de availability slot y al servicio de caché
 type AppointmentService struct {
 	repo  port.AppointmentRepository
+	quote port.QuoteRepository
+	slot 	port.AvailabilitySlotRepository
 	cache port.CacheRepository
 }
 
 // NewAppointmentService crea una nueva instancia del servicio Appointment
-func NewAppointmentService(repo port.AppointmentRepository, cache port.CacheRepository) *AppointmentService {
+func NewAppointmentService(repo port.AppointmentRepository, quote port.QuoteRepository, slot port.AvailabilitySlotRepository, cache port.CacheRepository) *AppointmentService {
 	return &AppointmentService{
 		repo,
+		quote,
+		slot,
 		cache,
 	}
 }
@@ -30,15 +35,49 @@ func (as *AppointmentService) CreateAppointment(ctx context.Context, appointment
 	appointment.ID = uuid.New()
 	appointment.Status = domain.Pending
 
-	createdappointment, err := as.repo.CreateAppointment(ctx, appointment)
+	//slot validation
+
+	slot, err := as.slot.GetAvailabilitySlotByID(ctx, appointment.SlotID)
+	if err != nil {
+		if err == domain.ErrDataNotFound {
+			return nil, err
+		}
+		return nil, domain.ErrInternal
+	}
+
+	if slot.IsBooked == true {
+		return nil, domain.ErrConflictingData
+	}
+
+	//quote validation
+
+	quote, err := as.quote.GetQuoteByID(ctx, appointment.QuoteID)
+	if err != nil {
+		if err == domain.ErrDataNotFound {
+			return nil, err
+		}
+		return nil, domain.ErrInternal
+	}
+
+	if 
+		quote.State == domain.QuoteState(domain.Booked) ||
+		quote.State == domain.QuoteState(domain.Cancelled) ||
+		quote.State == domain.QuoteState(domain.Completed) {
+		return nil, domain.ErrConflictingData
+	}
+
+	createdAppointment, err := as.repo.CreateAppointment(ctx, appointment)
 	if err != nil {
 		slog.Error("Appointment creation failed", "error", err)
+		if err == domain.ErrConflictingData {
+        return nil, err
+    }
 		return nil, domain.ErrInternal
 	}
 
 	// Cache del appointment creado
-	cacheKey := util.GenerateCacheKey("appointment", createdappointment.ID)
-	appointmentSerialized, err := util.Serialize(createdappointment)
+	cacheKey := util.GenerateCacheKey("appointment", createdAppointment.ID)
+	appointmentSerialized, err := util.Serialize(createdAppointment)
 	if err != nil {
 		return nil, domain.ErrInternal
 	}
@@ -53,7 +92,7 @@ func (as *AppointmentService) CreateAppointment(ctx context.Context, appointment
 		return nil, domain.ErrInternal
 	}
 
-	return createdappointment, nil
+	return createdAppointment, nil
 }
 
 // GetAppointment obtiene un availability appointment por ID
@@ -147,17 +186,32 @@ func (as *AppointmentService) UpdateAppointment(ctx context.Context, appointment
 		}
 		return nil, domain.ErrInternal
 	}
+		
+	//slot validation
+
+	slot, err := as.slot.GetAvailabilitySlotByID(ctx, appointment.SlotID)
+	if err != nil {
+		if err == domain.ErrDataNotFound {
+			return nil, err
+		}
+		log.Printf("error al buscar slot")
+		return nil, domain.ErrInternal
+	}
+
+	if slot.IsBooked == true {
+		return nil, domain.ErrConflictingData
+	}
 
 	zeroUUID := uuid.UUID{}
 
 	emptyData := appointment.UserID == zeroUUID &&
-		appointment.SlotId == zeroUUID &&
-		appointment.QuoteId == zeroUUID &&
+		appointment.SlotID == zeroUUID &&
+		appointment.QuoteID == zeroUUID &&
 		appointment.Status == "" 
 
 	sameData := existingAppointment.UserID == appointment.UserID &&
-		existingAppointment.SlotId == appointment.SlotId &&
-		existingAppointment.QuoteId == appointment.QuoteId &&
+		existingAppointment.SlotID == appointment.SlotID &&
+		existingAppointment.QuoteID == appointment.QuoteID &&
 		existingAppointment.Status == appointment.Status
 
 	if emptyData || sameData {

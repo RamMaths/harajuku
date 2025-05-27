@@ -31,6 +31,7 @@ func NewRouter(
 	quoteHandler QuoteHandler,
 	typeOfServiceHandler TypeOfServiceHandler,
 	availabilitySlotHandler AvailabilitySlotHandler,
+	appointmentHandler AppointmentHandler,
 ) (*Router, error) {
 	// Disable debug mode in production
 	if config.Env == "production" {
@@ -97,21 +98,29 @@ func NewRouter(
 
 		typeOfService := v1.Group("/typesofservice").Use(authMiddleware(token))
 		{
-			typeOfService.POST("", typeOfServiceHandler.CreateTypeOfService)
-			typeOfService.GET("/all", typeOfServiceHandler.ListTypeOfServices)
-			typeOfService.GET("", typeOfServiceHandler.GetTypeOfService)
-			typeOfService.PUT("", typeOfServiceHandler.UpdateTypeOfService)
-			typeOfService.DELETE("", typeOfServiceHandler.DeleteTypeOfService)
+			typeOfService.POST("", typeOfServiceHandler.CreateTypeOfService).Use(adminMiddleware())
+			typeOfService.GET("/all", typeOfServiceHandler.ListTypeOfServices).Use(adminMiddleware())
+			typeOfService.GET("", typeOfServiceHandler.GetTypeOfService).Use(adminMiddleware())
+			typeOfService.PUT("", typeOfServiceHandler.UpdateTypeOfService).Use(adminMiddleware())
+			typeOfService.DELETE("", typeOfServiceHandler.DeleteTypeOfService).Use(adminMiddleware())
 		}
 
 		availabilitySlot := v1.Group("/availabilityslots").Use(authMiddleware(token))
 		{
-			availabilitySlot.POST("", availabilitySlotHandler.CreateSlot)
-			availabilitySlot.GET("", availabilitySlotHandler.ListSlots)
-			availabilitySlot.PUT("", availabilitySlotHandler.UpdateSlot)
-			availabilitySlot.DELETE("", availabilitySlotHandler.DeleteSlot)
+			availabilitySlot.POST("", availabilitySlotHandler.CreateSlot).Use(adminMiddleware())
+			availabilitySlot.GET("", availabilitySlotHandler.ListSlots).Use(adminMiddleware())
+			availabilitySlot.PUT("", availabilitySlotHandler.UpdateSlot).Use(adminMiddleware())
+			availabilitySlot.DELETE("", availabilitySlotHandler.DeleteSlot).Use(adminMiddleware())
 		}
 
+		appointments := v1.Group("/appointments").Use(authMiddleware(token))
+		{
+			appointments.POST("", appointmentHandler.CreateAppointment)
+			appointments.GET("/all", appointmentHandler.ListAppointments)
+			appointments.GET("", appointmentHandler.GetAppointment)
+			appointments.PUT("", appointmentHandler.UpdateAppointment)
+			appointments.DELETE("", appointmentHandler.DeleteAppointment)
+		}
 	}
 
 	return &Router{

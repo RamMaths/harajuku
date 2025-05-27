@@ -68,13 +68,37 @@ func (r *QuoteRepository) GetQuoteByID(ctx context.Context, id uuid.UUID) (*doma
 }
 
 // ListQuotes retrieves a list of quotes from the database
-func (r *QuoteRepository) ListQuotes(ctx context.Context, skip, limit uint64) ([]domain.Quote, error) {
+func (r *QuoteRepository) ListQuotes(ctx context.Context, filter port.QuoteFilter) ([]domain.Quote, error) {
 	var quotes []domain.Quote
 
 	query := r.db.QueryBuilder.Select("id", "\"typeOfServiceId\"", "\"clientId\"", "time", "description", "state", "price").
-		From("\"Quote\"").
-		Limit(limit).
-		Offset((skip - 1) * limit)
+		From("\"Quote\"")
+
+	if filter.TypeOfServiceID != nil {
+		query = query.Where(sq.Eq{`"typeOfServiceId"`: *filter.TypeOfServiceID})
+	}
+
+	if filter.ClientID != nil {
+		query = query.Where(sq.Eq{`"clientId"`: *filter.ClientID})
+	}
+
+	if filter.StartDate != nil {
+		query = query.Where(sq.GtOrEq{`"time"`: *filter.StartDate})
+	}
+
+	if filter.EndDate != nil {
+		query = query.Where(sq.LtOrEq{`"time"`: *filter.EndDate})
+	}
+
+	if filter.ByState != nil {
+		query = query.Where(sq.Eq{`"state"`: *filter.ByState})
+	}
+
+	// Paginación (skip = número de página - 1)
+	if filter.Limit > 0 {
+		offset := ((filter.Skip - 1) * filter.Limit)
+		query = query.Limit(filter.Limit).Offset(offset)
+	}
 
 	sql, args, err := query.ToSql()
 	if err != nil {

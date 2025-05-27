@@ -180,8 +180,13 @@ func (qh *QuoteHandler) CreateQuote(ctx *gin.Context) {
 
 // listQuotesRequest representa los parámetros de la consulta para listar cotizaciones
 type listQuotesRequest struct {
-	Skip  uint64 `form:"skip" binding:"required,min=0"`
-	Limit uint64 `form:"limit" binding:"required,min=5"`
+	TypeOfServiceID  *string 	`form:"typeOfServiceId"`
+	ClientID     		 *string 	`form:"clientId"`
+	StartDate   		 *string 	`form:"startDate"`
+	EndDate   			 *string 	`form:"endDate"`
+	State 		     	 *string 	`form:"state"`
+	Skip  					 uint64 	`form:"skip" binding:"required,min=0"`
+	Limit 					 uint64 	`form:"limit" binding:"required,min=5"`
 }
 
 // ListQuotes godoc
@@ -206,7 +211,86 @@ func (qh *QuoteHandler) ListQuotes(ctx *gin.Context) {
 		return
 	}
 
-	quotes, err := qh.svc.ListQuotes(ctx, req.Skip, req.Limit)
+	// Get user ID from auth token
+	authPayload := getAuthPayload(ctx, authorizationPayloadKey)
+
+	if authPayload.Role == domain.Client && req.ClientID != nil {
+		handleError(ctx, domain.ErrUnauthorized)
+		return
+	}
+
+	var typeOfServiceId *uuid.UUID
+
+	if req.TypeOfServiceID != nil {
+		id, err := uuid.Parse(*req.TypeOfServiceID)
+		if err != nil {
+			validationError(ctx, fmt.Errorf("invalid typeOfServiceId: %v", err))
+			return
+		}
+		typeOfServiceId = &id
+	}
+
+	var clientId *uuid.UUID
+
+	if req.ClientID != nil {
+		id, err := uuid.Parse(*req.ClientID)
+		if err != nil {
+			validationError(ctx, fmt.Errorf("invalid clientId: %v", err))
+			return
+		}
+		clientId = &id
+	}
+
+	if authPayload.Role == domain.Client {
+		clientId = &authPayload.UserID
+	}
+
+	var startDate *time.Time
+
+	if req.StartDate != nil {
+		t, err := time.Parse(time.RFC3339, *req.StartDate)
+		if err != nil {
+			validationError(ctx, fmt.Errorf("invalid startDate format (must be RFC3339)"))
+			return
+		}
+		startDate = &t
+	}
+
+	var endDate *time.Time
+
+	if req.EndDate != nil {
+		t, err := time.Parse(time.RFC3339, *req.EndDate)
+		if err != nil {
+			validationError(ctx, fmt.Errorf("invalid endDate format (must be RFC3339)"))
+			return
+		}
+		endDate = &t
+	}
+
+	var state *domain.QuoteState
+
+	if req.State != nil {
+		s := domain.QuoteState(*req.State)
+		if s != domain.QuotePending && s != domain.QuoteApproved &&
+			s != domain.QuoteRejected && s != domain.QuoteRequiresProof {
+			validationError(ctx, fmt.Errorf("invalid state value"))
+			return
+		}
+		state = &s
+	}
+
+	// Build the filter
+	filter := port.QuoteFilter{
+		TypeOfServiceID: typeOfServiceId,
+		ClientID: clientId,
+		StartDate:  startDate,
+		EndDate:    endDate,
+		ByState:    state,
+		Skip:       req.Skip,
+		Limit:      req.Limit,
+	}
+
+	quotes, err := qh.svc.ListQuotes(ctx, filter)
 	if err != nil {
 		handleError(ctx, err)
 		return
@@ -243,6 +327,7 @@ func (qh *QuoteHandler) ListQuotes(ctx *gin.Context) {
 //	@Router			/quotes [get]
 
 func (qh *QuoteHandler) GetQuote(ctx *gin.Context) {
+
 	id := ctx.DefaultQuery("id", "")
 
 	if id == "" {
@@ -269,13 +354,12 @@ func (qh *QuoteHandler) GetQuote(ctx *gin.Context) {
 }
 
 // updateQuoteRequest representa el cuerpo de la solicitud para actualizar una cotización
+
 type updateQuoteRequest struct {
-	TypeOfServiceID uuid.UUID         `json:"typeOfServiceId" binding:"required"`
-	ClientID        uuid.UUID         `json:"clientId" binding:"required"`
-	Time            time.Time         `json:"time" binding:"required"`
-	Description     string            `json:"description" binding:"required"`
-	State           domain.QuoteState `json:"state" binding:"required"`
-	Price           float64           `json:"price" binding:"required"`
+	TypeOfServiceID *uuid.UUID `json:"typeOfServiceId,omitempty"`
+	Description     *string    `json:"description,omitempty"`
+	State           *string    `json:"state,omitempty"`
+	Price           *float64   `json:"price,omitempty"`
 }
 
 // UpdateQuote godoc
@@ -295,10 +379,31 @@ type updateQuoteRequest struct {
 //	@Failure		500	{object}	errorResponse	"Internal server error"
 //	@Router			/quotes [put]
 func (qh *QuoteHandler) UpdateQuote(ctx *gin.Context) {
-	id := ctx.DefaultQuery("id", "")
+	// Get user ID from auth token
+	authPayload := getAuthPayload(ctx, authorizationPayloadKey)
+	idStr := ctx.DefaultQuery("id", "")
 
-	if id == "" {
+	if idStr == "" {
 		validationError(ctx, fmt.Errorf("ID is required"))
+		return
+	}
+
+	// Convertir el string a un UUID
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		validationError(ctx, fmt.Errorf("invalid UUID format"))
+		return
+	}
+
+	quote, _, err := qh.svc.GetQuote(ctx, id)
+
+	if err != nil {
+		handleError(ctx, err)
+		return
+	}
+
+	if authPayload.Role == domain.Client && quote.ClientID != authPayload.UserID {
+		handleError(ctx, domain.ErrUnauthorized)
 		return
 	}
 
@@ -309,24 +414,38 @@ func (qh *QuoteHandler) UpdateQuote(ctx *gin.Context) {
 		return
 	}
 
-	// Validar que el estado es válido
-	if !req.State.IsValidState() {
-		validationError(ctx, fmt.Errorf("invalid state"))
-		return
+	if authPayload.Role == domain.Client {
+		if req.State != nil || req.Price != nil {
+			handleError(ctx, domain.ErrUnauthorized)
+			return
+		}
 	}
 
-	// Llamar al servicio para actualizar la cotización
-	quote := &domain.Quote{
-		ID:              uuid.MustParse(id),
-		TypeOfServiceID: req.TypeOfServiceID,
-		ClientID:        req.ClientID,
-		Time:            req.Time,
-		Description:     req.Description,
-		State:           req.State,
-		Price:           req.Price,
+	quote = &domain.Quote{ ID: id }
+
+	if req.TypeOfServiceID != nil {
+		quote.TypeOfServiceID = *req.TypeOfServiceID
 	}
 
-	_, err := qh.svc.UpdateQuote(ctx, quote)
+	if req.Description != nil {
+		quote.Description = *req.Description
+	}
+
+	if req.State != nil {
+		s := domain.QuoteState(*req.State)
+		if s != domain.QuotePending && s != domain.QuoteApproved &&
+			s != domain.QuoteRejected && s != domain.QuoteRequiresProof {
+			validationError(ctx, fmt.Errorf("invalid state value"))
+			return
+		}
+		quote.State = s
+	}
+
+	if req.Price != nil {
+		quote.Price = *req.Price
+	}
+
+	_, err = qh.svc.UpdateQuote(ctx, quote)
 	if err != nil {
 		handleError(ctx, err)
 		return
@@ -358,6 +477,9 @@ func (qh *QuoteHandler) UpdateQuote(ctx *gin.Context) {
 //	@Failure		500	{object}	errorResponse	"Internal server error"
 //	@Router			/quotes [delete]
 func (qh *QuoteHandler) DeleteQuote(ctx *gin.Context) {
+	// Get user ID from auth token
+	authPayload := getAuthPayload(ctx, authorizationPayloadKey)
+
 	idStr := ctx.DefaultQuery("id", "")
 	if idStr == "" {
 		validationError(ctx, fmt.Errorf("ID is required"))
@@ -368,6 +490,18 @@ func (qh *QuoteHandler) DeleteQuote(ctx *gin.Context) {
 	id, err := uuid.Parse(idStr)
 	if err != nil {
 		validationError(ctx, fmt.Errorf("invalid UUID format"))
+		return
+	}
+
+	quote, _, err := qh.svc.GetQuote(ctx, id)
+
+	if err != nil {
+		handleError(ctx, err)
+		return
+	}
+
+	if authPayload.Role == domain.Client && quote.ClientID != authPayload.UserID {
+		handleError(ctx, domain.ErrUnauthorized)
 		return
 	}
 
