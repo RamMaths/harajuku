@@ -93,6 +93,7 @@ func (h *AppointmentHandler) ListAppointments(ctx *gin.Context) {
 		quoteID    *uuid.UUID
 		err        error
 	)
+
 	if req.CustomerID != "" {
 		id, err := uuid.Parse(req.CustomerID)
 		if err != nil {

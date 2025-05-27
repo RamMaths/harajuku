@@ -218,10 +218,10 @@ func (us *QuoteService) GetQuote(ctx context.Context, id uuid.UUID) (*domain.Quo
 }
 
 // ListQuotes lists all quotes
-func (us *QuoteService) ListQuotes(ctx context.Context, skip, limit uint64) ([]domain.Quote, error) {
+func (us *QuoteService) ListQuotes(ctx context.Context, filter port.QuoteFilter) ([]domain.Quote, error) {
 	var quotes []domain.Quote
 
-	params := util.GenerateCacheKeyParams(skip, limit)
+	params := util.GenerateCacheKeyParams(filter)
 	cacheKey := util.GenerateCacheKey("quotes", params)
 
 	cachedQuotes, err := us.cache.Get(ctx, cacheKey)
@@ -233,7 +233,7 @@ func (us *QuoteService) ListQuotes(ctx context.Context, skip, limit uint64) ([]d
 		return quotes, nil
 	}
 
-	quotes, err = us.repo.ListQuotes(ctx, skip, limit)
+	quotes, err = us.repo.ListQuotes(ctx, filter)
 	if err != nil {
 		return nil, domain.ErrInternal
 	}
