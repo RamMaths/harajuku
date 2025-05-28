@@ -358,7 +358,6 @@ func (qh *QuoteHandler) GetQuote(ctx *gin.Context) {
 type updateQuoteRequest struct {
 	TypeOfServiceID *uuid.UUID `json:"typeOfServiceId,omitempty"`
 	Description     *string    `json:"description,omitempty"`
-	State           *string    `json:"state,omitempty"`
 	Price           *float64   `json:"price,omitempty"`
 }
 
@@ -414,11 +413,9 @@ func (qh *QuoteHandler) UpdateQuote(ctx *gin.Context) {
 		return
 	}
 
-	if authPayload.Role == domain.Client {
-		if req.State != nil || req.Price != nil {
-			handleError(ctx, domain.ErrUnauthorized)
-			return
-		}
+	if authPayload.Role == domain.Client && req.Price != nil {
+		handleError(ctx, domain.ErrUnauthorized)
+		return
 	}
 
 	quote = &domain.Quote{ ID: id }
@@ -429,16 +426,6 @@ func (qh *QuoteHandler) UpdateQuote(ctx *gin.Context) {
 
 	if req.Description != nil {
 		quote.Description = *req.Description
-	}
-
-	if req.State != nil {
-		s := domain.QuoteState(*req.State)
-		if s != domain.QuotePending && s != domain.QuoteApproved &&
-			s != domain.QuoteRejected && s != domain.QuoteRequiresProof {
-			validationError(ctx, fmt.Errorf("invalid state value"))
-			return
-		}
-		quote.State = s
 	}
 
 	if req.Price != nil {
@@ -512,4 +499,68 @@ func (qh *QuoteHandler) DeleteQuote(ctx *gin.Context) {
 		return
 	}
 	handleSuccess(ctx, "Quote deleted successfully")
+}
+
+type changeQuoteStateRequest struct {
+	State *string `json:"state,omitempty"`
+}
+
+// UpdateQuote godoc
+//
+//	@Summary		Update a quote
+//	@Description	Update a quote by id
+//	@Tags			Quotes
+//	@Accept			json
+//	@Produce		json
+//
+// @Param         id     query   string        true   "Quote ID"
+// @Param         quote  body    updateQuoteRequest   true   "Quote Data" (sin el ID)
+//
+//	@Success		200	{object}	quoteResponse	"Quote updated"
+//	@Failure		400	{object}	errorResponse	"Validation error"
+//	@Failure		404	{object}	errorResponse	"Data not found error"
+//	@Failure		500	{object}	errorResponse	"Internal server error"
+//	@Router			/quotes [put]
+func (qh *QuoteHandler) ChangeQuoteState(ctx *gin.Context) {
+	idStr := ctx.DefaultQuery("id", "")
+
+	if idStr == "" {
+		validationError(ctx, fmt.Errorf("ID is required"))
+		return
+	}
+
+	// Convertir el string a un UUID
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		validationError(ctx, fmt.Errorf("invalid UUID format"))
+		return
+	}
+
+	// Inicializar la estructura para la solicitud
+	var req changeQuoteStateRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		validationError(ctx, err)
+		return
+	}
+
+	var state domain.QuoteState
+
+	if req.State != nil {
+		s := domain.QuoteState(*req.State)
+		if s != domain.QuoteApproved && s != domain.QuoteRequiresProof && s != domain.QuoteRejected {
+				validationError(ctx, fmt.Errorf("invalid state value it has to be either 'approved', 'rejected' or 'requires_proof'"))
+			return
+		}
+		state = s
+	}
+
+	quote, err := qh.svc.ChangeQuoteState(ctx, id, state)
+	if err != nil {
+		handleError(ctx, err)
+		return
+	}
+
+	// Responder con el resultado
+	rsp := newQuoteResponse(quote)
+	handleSuccess(ctx, rsp)
 }

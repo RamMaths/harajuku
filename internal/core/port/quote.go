@@ -49,4 +49,6 @@ type QuoteService interface {
 	UpdateQuote(ctx context.Context, quote *domain.Quote) (*domain.Quote, error)
 	// DeleteQuote deletes a quote
 	DeleteQuote(ctx context.Context, id uuid.UUID) error
+	// ChangeQuoteState updates the quote's but it has more logic invovled after
+	ChangeQuoteState(ctx context.Context, id uuid.UUID, state domain.QuoteState) (*domain.Quote, error)
 }

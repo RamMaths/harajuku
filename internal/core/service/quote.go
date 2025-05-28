@@ -404,3 +404,88 @@ func (us *QuoteService) DeleteQuote(ctx context.Context, id uuid.UUID) error {
 
 	return us.repo.DeleteQuote(ctx, id)
 }
+
+func (us *QuoteService) ChangeQuoteState(ctx context.Context, id uuid.UUID, state domain.QuoteState) (*domain.Quote, error) {
+	existingQuote, err := us.repo.GetQuoteByID(ctx, id)
+
+	if err != nil {
+		if err == domain.ErrDataNotFound {
+			return nil, err
+		}
+		return nil, domain.ErrInternal
+	}
+
+	if existingQuote.State == state {
+		return nil, domain.ErrNoUpdatedData
+	}
+
+	quote := existingQuote
+	quote.State = state
+
+	quote, err = us.repo.UpdateQuote(ctx, quote)
+	if err != nil {
+		if err == domain.ErrConflictingData {
+			return nil, err
+		}
+		return nil, domain.ErrInternal
+	}
+
+	cacheKey := util.GenerateCacheKey("quote", quote.ID)
+
+	err = us.cache.Delete(ctx, cacheKey)
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
+
+	quoteSerialized, err := util.Serialize(quote)
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
+
+	err = us.cache.Set(ctx, cacheKey, quoteSerialized, 0)
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
+
+	err = us.cache.DeleteByPrefix(ctx, "quotes:*")
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
+	err = us.cache.DeleteByPrefix(ctx, "quoteImages:*")
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
+
+	var text string
+
+	if state == domain.QuoteApproved {
+		text = "Estimado cliente su Cotización ha sido aprovada, para seguir con el proceso necesitamos que suba el comprobante de pago al sistema para poder proceder."
+	} else if state == domain.QuoteRejected {
+		text = "Estimado cliente su Cotización ha sido rechazada le recomendamos actualizar los datos de su cotización para una nueva revisión."
+	} else if state == domain.QuoteRequiresProof {
+		text = "Estimado cliente su Cotización para seguir el proceso necesitamos realizar una prueba de mechón para esto es importante que genere una cita en nuestro sistema."
+	}
+
+	client, err := us.user.GetUserByID(ctx, quote.ClientID)
+
+	if err != nil {
+		if err == domain.ErrDataNotFound {
+			return nil, err
+		}
+		return nil, domain.ErrInternal
+	}
+
+	emails := []string{client.Email}
+
+ 	if err := us.email.SendEmail(
+		ctx,
+		emails,
+		"Resupesta a su cotización",
+		text,
+		"",
+	); err != nil {
+		slog.Warn("email send failed", "quote_id", quote.ID, "error", err)
+	}
+
+	return quote, nil
+}

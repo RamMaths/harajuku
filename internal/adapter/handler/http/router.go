@@ -93,6 +93,7 @@ func NewRouter(
 			quote.GET("/all", quoteHandler.ListQuotes)
 			quote.GET("", quoteHandler.GetQuote)
 			quote.PUT("", quoteHandler.UpdateQuote)
+			quote.PATCH("/state", quoteHandler.ChangeQuoteState).Use(adminMiddleware())
 			quote.DELETE("", quoteHandler.DeleteQuote)
 		}
 
