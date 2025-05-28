@@ -130,6 +130,7 @@ func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote, fi
 
     // 5) Notify admins (best-effort)
     emails, err := us.user.GetAdminsEmails(ctx)
+
     if err == nil {
         client, _ := us.user.GetUserByID(ctx, created.ClientID)
         if err := us.email.SendEmail(
@@ -283,13 +284,38 @@ func (us *QuoteService) UpdateQuote(ctx context.Context, quote *domain.Quote) (*
 		return nil, domain.ErrNoUpdatedData
 	}
 
-	_, err = us.repo.UpdateQuote(ctx, quote)
+	quote, err = us.repo.UpdateQuote(ctx, quote)
 	if err != nil {
 		if err == domain.ErrConflictingData {
 			return nil, err
 		}
 		return nil, domain.ErrInternal
 	}
+
+  if quote.State == domain.QuoteRequiresProof {
+    client, err := us.user.GetUserByID(ctx, quote.ClientID)
+
+    if err != nil {
+      if err == domain.ErrDataNotFound {
+        return nil, err
+      }
+      return nil, domain.ErrInternal
+    }
+
+    emails := []string{client.Email}
+
+    if err := us.email.SendEmail(
+      ctx,
+      emails,
+      "Resupesta a su cotización",
+      fmt.Sprintf(
+        "Estimado cliente su Cotización requiere una prueba de mechón, para esto necesitamos que realice una cita en nuestro sistema.",
+      ),
+      "",
+    ); err != nil {
+      slog.Warn("email send failed", "quote_id", quote.ID, "error", err)
+    }
+  }
 
 	cacheKey := util.GenerateCacheKey("quote", quote.ID)
 
@@ -323,7 +349,6 @@ func (us *QuoteService) UpdateQuote(ctx context.Context, quote *domain.Quote) (*
 
 // DeleteQuote deletes a quote by ID
 func (us *QuoteService) DeleteQuote(ctx context.Context, id uuid.UUID) error {
-
 	quote, err := us.repo.GetQuoteByID(ctx, id)
 	if err != nil {
 		if err == domain.ErrDataNotFound {
