@@ -99,9 +99,9 @@ func NewRouter(
 
 		typeOfService := v1.Group("/typesofservice").Use(authMiddleware(token))
 		{
-			typeOfService.POST("", typeOfServiceHandler.CreateTypeOfService).Use(adminMiddleware())
 			typeOfService.GET("/all", typeOfServiceHandler.ListTypeOfServices)
 			typeOfService.GET("", typeOfServiceHandler.GetTypeOfService)
+			typeOfService.POST("", typeOfServiceHandler.CreateTypeOfService).Use(adminMiddleware())
 			typeOfService.PUT("", typeOfServiceHandler.UpdateTypeOfService).Use(adminMiddleware())
 			typeOfService.DELETE("", typeOfServiceHandler.DeleteTypeOfService).Use(adminMiddleware())
 		}
