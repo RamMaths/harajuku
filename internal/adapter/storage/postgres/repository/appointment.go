@@ -27,21 +27,21 @@ func NewAppointmentRepository(db *postgres.DB) *AppointmentRepository {
 // CreateAppointment crea un nuevo availability appointment en la base de datos
 func (r *AppointmentRepository) CreateAppointment(ctx context.Context, appointment *domain.Appointment) (*domain.Appointment, error) {
 	query := r.db.QueryBuilder.Insert("\"Appointment\""). // Ajustar el nombre de la tabla si es necesario
-									Columns("id", "\"clientId\"", "\"slotId\"", "\"quoteId\"", "\"status\"").
-									Values(appointment.ID, appointment.UserID, appointment.SlotID, appointment.QuoteID, appointment.Status).
-									Suffix("RETURNING id")
+								Columns("id", "\"clientId\"", "\"slotId\"", "\"quoteId\"", "\"status\"").
+								Values(appointment.ID, appointment.UserID, appointment.SlotID, appointment.QuoteID, appointment.Status).
+								Suffix("RETURNING id")
 
 	sql, args, err := query.ToSql()
-	if err != nil { 
+	if err != nil {
 		return nil, err
 	}
 
 	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(&appointment.ID)
 	if err != nil {
 		if pgErr, ok := err.(*pgconn.PgError); ok && pgErr.Code == "23505" {
-					// You might also inspect pgErr.Constraint to be extra sure it’s the quoteId constraint
-					return nil, domain.ErrConflictingData
-			}
+			// You might also inspect pgErr.Constraint to be extra sure it’s the quoteId constraint
+			return nil, domain.ErrConflictingData
+		}
 		return nil, err
 	}
 
@@ -106,11 +106,11 @@ func (r *AppointmentRepository) ListAppointments(ctx context.Context, filter por
 
 	// Filter by AvailabilitySlot.startTime
 	if filter.StartDate != nil {
-			query = query.Where(sq.GtOrEq{`"AvailabilitySlot"."startTime"`: *filter.StartDate})
+		query = query.Where(sq.GtOrEq{`"AvailabilitySlot"."startTime"`: *filter.StartDate})
 	}
 
 	if filter.EndDate != nil {
-			query = query.Where(sq.LtOrEq{`"AvailabilitySlot"."startTime"`: *filter.EndDate})
+		query = query.Where(sq.LtOrEq{`"AvailabilitySlot"."startTime"`: *filter.EndDate})
 	}
 
 	// Paginación (skip = número de página - 1)
@@ -194,4 +194,19 @@ func (r *AppointmentRepository) DeleteAppointment(ctx context.Context, id uuid.U
 	}
 
 	return nil
+}
+
+func (r *AppointmentRepository) MarkAsBookedByQuoteID(ctx context.Context, quoteID uuid.UUID) error {
+	query := r.db.QueryBuilder.
+		Update("\"Appointment\"").
+		Set("status", "booked").
+		Where(sq.Eq{"\"quoteId\"": quoteID})
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return err
+	}
+
+	_, err = r.db.Conn.Exec(ctx, sql, args...)
+	return err
 }

@@ -32,6 +32,7 @@ func NewRouter(
 	typeOfServiceHandler TypeOfServiceHandler,
 	availabilitySlotHandler AvailabilitySlotHandler,
 	appointmentHandler AppointmentHandler,
+	paymentProofHandler PaymentProofHandler,
 ) (*Router, error) {
 	// Disable debug mode in production
 	if config.Env == "production" {
@@ -52,10 +53,10 @@ func NewRouter(
 	originsList := strings.Split(allowedOrigins, ",")
 	ginConfig.AllowOrigins = originsList
 	ginConfig.AllowHeaders = append(
-		ginConfig.AllowHeaders, 
+		ginConfig.AllowHeaders,
 		"Authorization",
-    "Content-Type",
-    "X-Requested-With",
+		"Content-Type",
+		"X-Requested-With",
 	)
 	ginConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 	// If you need the frontend to read the token or other headers back:
@@ -122,6 +123,16 @@ func NewRouter(
 			appointments.PUT("", appointmentHandler.UpdateAppointment)
 			appointments.DELETE("", appointmentHandler.DeleteAppointment)
 		}
+
+		paymentProof := v1.Group("/paymentproofs").Use(authMiddleware(token))
+		{
+			paymentProof.POST("", paymentProofHandler.CreatePaymentProof)
+			paymentProof.GET("", paymentProofHandler.GetPaymentProofByID)
+			paymentProof.GET("/all", paymentProofHandler.GetPaymentProofs)
+			paymentProof.PUT("", paymentProofHandler.UpdatePaymentProof).Use(adminMiddleware())
+			paymentProof.DELETE("", paymentProofHandler.DeletePaymentProof).Use(adminMiddleware())
+		}
+
 	}
 
 	return &Router{

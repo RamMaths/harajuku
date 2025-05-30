@@ -110,7 +110,6 @@ func main() {
 	typeOfServiceService := service.NewTypeOfServiceService(typeOfServiceRepo, cache)
 	typeOfServiceHandler := http.NewTypeOfServiceHandler(typeOfServiceService)
 
-
 	// Quote
 	quoteRepo := repository.NewQuoteRepository(db)
 	quoteImageRepo := repository.NewQuoteImageRepository(db)
@@ -127,6 +126,18 @@ func main() {
 	appointmentService := service.NewAppointmentService(appointmentRepo, quoteRepo, availabilitySlotRepo, cache)
 	appointmentHandler := http.NewAppointmentHandler(appointmentService, userService)
 
+	// PaymentProof
+	paymentProofRepo := repository.NewPaymentProofRepository(db)
+	paymentProofService := service.NewPaymentProofService(
+		paymentProofRepo, // port.PaymentProofRepository
+		s3,               // port.FileRepository
+		quoteRepo,        // port.QuoteRepository
+		email,            // port.EmailRepository
+		*db,              // postgres.DB
+		cache,            // port.CacheRepository
+	)
+	paymentProofHandler := http.NewPaymentProofHandler(paymentProofService)
+
 	// Init router
 	router, err := http.NewRouter(
 		config.HTTP,
@@ -137,6 +148,7 @@ func main() {
 		*typeOfServiceHandler,
 		*availabilitySlotHandler,
 		*appointmentHandler,
+		*paymentProofHandler,
 	)
 
 	if err != nil {

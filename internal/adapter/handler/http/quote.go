@@ -50,22 +50,21 @@ func newQuoteResponse(q *domain.Quote) *quoteResponse {
 
 // quoteResponse representa la respuesta
 type quoteImageResponse struct {
-	ID              uuid.UUID `json:"id"`
-	QuoteID 				uuid.UUID `json:"quoteId"`
-	URL     				string    `json:"url"`
+	ID      uuid.UUID `json:"id"`
+	QuoteID uuid.UUID `json:"quoteId"`
+	URL     string    `json:"url"`
 }
-
 
 // quoteResponse representa la respuesta
 type quoteResponseWithImages struct {
-	ID              uuid.UUID 							`json:"id"`
-	TypeOfServiceID uuid.UUID 							`json:"typeOfServiceID"`
-	ClientID        uuid.UUID 							`json:"clientID"`
-	Description     string    							`json:"description"`
-	State           string    							`json:"state"`
-	Price           float64   							`json:"price"`
-	Time            string    							`json:"time"`
-	Images          []quoteImageResponse    `json:"images"`
+	ID              uuid.UUID            `json:"id"`
+	TypeOfServiceID uuid.UUID            `json:"typeOfServiceID"`
+	ClientID        uuid.UUID            `json:"clientID"`
+	Description     string               `json:"description"`
+	State           string               `json:"state"`
+	Price           float64              `json:"price"`
+	Time            string               `json:"time"`
+	Images          []quoteImageResponse `json:"images"`
 }
 
 // newQuoteResponse convierte un objeto domain. Quote en una respuesta de cotización
@@ -73,11 +72,11 @@ func newQuoteResponseWithImages(q *domain.Quote, images []domain.QuoteImage) *qu
 	// build the slice of image responses
 	respImgs := make([]quoteImageResponse, len(images))
 	for i, img := range images {
-			respImgs[i] = quoteImageResponse{
-					ID:      img.ID,
-					QuoteID: img.QuoteID,
-					URL:     img.URL,
-			}
+		respImgs[i] = quoteImageResponse{
+			ID:      img.ID,
+			QuoteID: img.QuoteID,
+			URL:     img.URL,
+		}
 	}
 
 	return &quoteResponseWithImages{
@@ -91,7 +90,6 @@ func newQuoteResponseWithImages(q *domain.Quote, images []domain.QuoteImage) *qu
 		Images:          respImgs,
 	}
 }
-
 
 // createQuoteRequest representa el cuerpo de la solicitud para crear una cotización
 type createQuoteRequest struct {
@@ -180,13 +178,13 @@ func (qh *QuoteHandler) CreateQuote(ctx *gin.Context) {
 
 // listQuotesRequest representa los parámetros de la consulta para listar cotizaciones
 type listQuotesRequest struct {
-	TypeOfServiceID  *string 	`form:"typeOfServiceId"`
-	ClientID     		 *string 	`form:"clientId"`
-	StartDate   		 *string 	`form:"startDate"`
-	EndDate   			 *string 	`form:"endDate"`
-	State 		     	 *string 	`form:"state"`
-	Skip  					 uint64 	`form:"skip" binding:"required,min=0"`
-	Limit 					 uint64 	`form:"limit" binding:"required,min=5"`
+	TypeOfServiceID *string `form:"typeOfServiceId"`
+	ClientID        *string `form:"clientId"`
+	StartDate       *string `form:"startDate"`
+	EndDate         *string `form:"endDate"`
+	State           *string `form:"state"`
+	Skip            uint64  `form:"skip" binding:"required,min=0"`
+	Limit           uint64  `form:"limit" binding:"required,min=5"`
 }
 
 // ListQuotes godoc
@@ -282,12 +280,12 @@ func (qh *QuoteHandler) ListQuotes(ctx *gin.Context) {
 	// Build the filter
 	filter := port.QuoteFilter{
 		TypeOfServiceID: typeOfServiceId,
-		ClientID: clientId,
-		StartDate:  startDate,
-		EndDate:    endDate,
-		ByState:    state,
-		Skip:       req.Skip,
-		Limit:      req.Limit,
+		ClientID:        clientId,
+		StartDate:       startDate,
+		EndDate:         endDate,
+		ByState:         state,
+		Skip:            req.Skip,
+		Limit:           req.Limit,
 	}
 
 	quotes, err := qh.svc.ListQuotes(ctx, filter)
@@ -418,7 +416,7 @@ func (qh *QuoteHandler) UpdateQuote(ctx *gin.Context) {
 		return
 	}
 
-	quote = &domain.Quote{ ID: id }
+	quote = &domain.Quote{ID: id}
 
 	if req.TypeOfServiceID != nil {
 		quote.TypeOfServiceID = *req.TypeOfServiceID
@@ -547,8 +545,8 @@ func (qh *QuoteHandler) ChangeQuoteState(ctx *gin.Context) {
 
 	if req.State != nil {
 		s := domain.QuoteState(*req.State)
-		if s != domain.QuoteApproved && s != domain.QuoteRequiresProof && s != domain.QuoteRejected {
-				validationError(ctx, fmt.Errorf("invalid state value it has to be either 'approved', 'rejected' or 'requires_proof'"))
+		if s != domain.QuoteApproved && s != domain.QuoteRequiresProof && s != domain.QuoteRejected && s != domain.QuotePendingPayment {
+			validationError(ctx, fmt.Errorf("invalid state value it has to be either 'approved', 'rejected', 'requires_proof' or 'pending_payment'"))
 			return
 		}
 		state = s

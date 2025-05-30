@@ -21,14 +21,14 @@ import (
  * and cache service
  */
 type QuoteService struct {
-	repo       			port.QuoteRepository
-	file       			port.FileRepository
-	user       			port.UserRepository
-	email      			port.EmailRepository
-	quoteImage 			port.QuoteImageRepository
-	typeOfService 	port.TypeOfServiceRepository
-	db 							postgres.DB
-	cache      			port.CacheRepository
+	repo          port.QuoteRepository
+	file          port.FileRepository
+	user          port.UserRepository
+	email         port.EmailRepository
+	quoteImage    port.QuoteImageRepository
+	typeOfService port.TypeOfServiceRepository
+	db            postgres.DB
+	cache         port.CacheRepository
 }
 
 // NewQuoteService creates a new quote service instance
@@ -56,106 +56,105 @@ func NewQuoteService(
 
 // Register creates a new quote
 func (us *QuoteService) CreateQuote(ctx context.Context, quote *domain.Quote, file []byte, fileName string) (*domain.Quote, error) {
-		// 1) Validate IDs
-		_, err := us.typeOfService.GetTypeOfServiceByID(ctx, quote.TypeOfServiceID)
+	// 1) Validate IDs
+	_, err := us.typeOfService.GetTypeOfServiceByID(ctx, quote.TypeOfServiceID)
 
+	if err != nil {
+		return nil, domain.ErrDataNotFound
+	}
+
+	_, err = us.user.GetUserByID(ctx, quote.ClientID)
+
+	if err != nil {
+		return nil, domain.ErrDataNotFound
+	}
+
+	// 2) Upload the image first. Fail fast if this errors.
+	path, err := us.file.Save(ctx, file, fileName)
+	if err != nil {
+		slog.Error("file save failed", "error", err)
+		return nil, domain.ErrInternal
+	}
+
+	// 3) Atomic DB transaction: create quote + image row
+	var created *domain.Quote
+
+	err = us.db.WithTx(ctx, func(txDB *postgres.DB) error {
+		// build both repos on txDB
+		txQuoteRepo := repository.NewQuoteRepository(txDB)
+		txImageRepo := repository.NewQuoteImageRepository(txDB)
+
+		// insert quote
+		q, err := txQuoteRepo.CreateQuote(ctx, quote)
 		if err != nil {
-			return nil, domain.ErrDataNotFound
-		}
-
-		_, err = us.user.GetUserByID(ctx, quote.ClientID)
-
-		if err != nil {
-			return nil, domain.ErrDataNotFound
-		}
-
-		// 2) Upload the image first. Fail fast if this errors.
-    path, err := us.file.Save(ctx, file, fileName)
-    if err != nil {
-        slog.Error("file save failed", "error", err)
-        return nil, domain.ErrInternal
-    }
-
-    // 3) Atomic DB transaction: create quote + image row
-    var created *domain.Quote
-
-		err = us.db.WithTx(ctx, func(txDB *postgres.DB) error {
-			// build both repos on txDB
-			txQuoteRepo := repository.NewQuoteRepository(txDB)
-			txImageRepo := repository.NewQuoteImageRepository(txDB)
-
-			// insert quote
-			q, err := txQuoteRepo.CreateQuote(ctx, quote)
-			if err != nil {
-				return err
-			}
-			created = q
-
-			// insert image in *same* tx
-			_, err = txImageRepo.CreateQuoteImage(ctx, &domain.QuoteImage{
-				ID:      uuid.New(),
-				QuoteID: created.ID,
-				URL:     path,
-			})
-
 			return err
+		}
+		created = q
+
+		// insert image in *same* tx
+		_, err = txImageRepo.CreateQuoteImage(ctx, &domain.QuoteImage{
+			ID:      uuid.New(),
+			QuoteID: created.ID,
+			URL:     path,
 		})
-   
-    if err != nil {
-        slog.Error("transaction failed", "error", err)
-				err := us.file.Delete(ctx, path)
-				if err != nil {
-					slog.Error("deleting file failed", "error", err)
-					return nil, domain.ErrInternal
-				}
 
-        return nil, domain.ErrInternal
-    }
+		return err
+	})
 
-
-    // 4) Cache the new quote (best-effort)
-    cacheKey := util.GenerateCacheKey("quote", created.ID)
-    data, _ := util.Serialize(created)
-    if err := us.cache.Set(ctx, cacheKey, data, 0); err != nil {
-        slog.Warn("cache set failed", "error", err)
-    }
-		err = us.cache.DeleteByPrefix(ctx, "quotes:*")
+	if err != nil {
+		slog.Error("transaction failed", "error", err)
+		err := us.file.Delete(ctx, path)
 		if err != nil {
-			return nil, domain.ErrInternal
-		}
-		err = us.cache.DeleteByPrefix(ctx, "quoteImages:*")
-		if err != nil {
+			slog.Error("deleting file failed", "error", err)
 			return nil, domain.ErrInternal
 		}
 
-    // 5) Notify admins (best-effort)
-    emails, err := us.user.GetAdminsEmails(ctx)
+		return nil, domain.ErrInternal
+	}
 
-    if err == nil {
-        client, _ := us.user.GetUserByID(ctx, created.ClientID)
-        if err := us.email.SendEmail(
-            ctx,
-            emails,
-            "Se ha creado una nueva cotización",
-            fmt.Sprintf(
-                "Una nueva cotización se ha creado\n\tid: %s\n\tDescripción: %s\n\tCliente: %s %s",
-                created.ID, created.Description, client.Name, client.LastName,
-            ),
-            "",
-        ); err != nil {
-            slog.Warn("email send failed", "quote_id", created.ID, "error", err)
-        }
-    } else {
-        slog.Warn("could not fetch admin emails", "error", err)
-    }
+	// 4) Cache the new quote (best-effort)
+	cacheKey := util.GenerateCacheKey("quote", created.ID)
+	data, _ := util.Serialize(created)
+	if err := us.cache.Set(ctx, cacheKey, data, 0); err != nil {
+		slog.Warn("cache set failed", "error", err)
+	}
+	err = us.cache.DeleteByPrefix(ctx, "quotes:*")
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
+	err = us.cache.DeleteByPrefix(ctx, "quoteImages:*")
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
 
-    return created, nil
+	// 5) Notify admins (best-effort)
+	emails, err := us.user.GetAdminsEmails(ctx)
+
+	if err == nil {
+		client, _ := us.user.GetUserByID(ctx, created.ClientID)
+		if err := us.email.SendEmail(
+			ctx,
+			emails,
+			"Se ha creado una nueva cotización",
+			fmt.Sprintf(
+				"Una nueva cotización se ha creado\n\tid: %s\n\tDescripción: %s\n\tCliente: %s %s",
+				created.ID, created.Description, client.Name, client.LastName,
+			),
+			"",
+		); err != nil {
+			slog.Warn("email send failed", "quote_id", created.ID, "error", err)
+		}
+	} else {
+		slog.Warn("could not fetch admin emails", "error", err)
+	}
+
+	return created, nil
 }
 
 // GetQuote gets a quote by ID
 func (us *QuoteService) GetQuote(ctx context.Context, id uuid.UUID) (*domain.Quote, []domain.QuoteImage, error) {
 	var quote *domain.Quote
-	cacheKey:= util.GenerateCacheKey("quote", id)
+	cacheKey := util.GenerateCacheKey("quote", id)
 	cachedQuote, err := us.cache.Get(ctx, cacheKey)
 	if err == nil {
 		err := util.Deserialize(cachedQuote, &quote)
@@ -292,30 +291,30 @@ func (us *QuoteService) UpdateQuote(ctx context.Context, quote *domain.Quote) (*
 		return nil, domain.ErrInternal
 	}
 
-  if quote.State == domain.QuoteRequiresProof {
-    client, err := us.user.GetUserByID(ctx, quote.ClientID)
+	if quote.State == domain.QuoteRequiresProof {
+		client, err := us.user.GetUserByID(ctx, quote.ClientID)
 
-    if err != nil {
-      if err == domain.ErrDataNotFound {
-        return nil, err
-      }
-      return nil, domain.ErrInternal
-    }
+		if err != nil {
+			if err == domain.ErrDataNotFound {
+				return nil, err
+			}
+			return nil, domain.ErrInternal
+		}
 
-    emails := []string{client.Email}
+		emails := []string{client.Email}
 
-    if err := us.email.SendEmail(
-      ctx,
-      emails,
-      "Resupesta a su cotización",
-      fmt.Sprintf(
-        "Estimado cliente su Cotización requiere una prueba de mechón, para esto necesitamos que realice una cita en nuestro sistema.",
-      ),
-      "",
-    ); err != nil {
-      slog.Warn("email send failed", "quote_id", quote.ID, "error", err)
-    }
-  }
+		if err := us.email.SendEmail(
+			ctx,
+			emails,
+			"Resupesta a su cotización",
+			fmt.Sprintf(
+				"Estimado cliente su Cotización requiere una prueba de mechón, para esto necesitamos que realice una cita en nuestro sistema.",
+			),
+			"",
+		); err != nil {
+			slog.Warn("email send failed", "quote_id", quote.ID, "error", err)
+		}
+	}
 
 	cacheKey := util.GenerateCacheKey("quote", quote.ID)
 
@@ -343,7 +342,6 @@ func (us *QuoteService) UpdateQuote(ctx context.Context, quote *domain.Quote) (*
 		return nil, domain.ErrInternal
 	}
 
-
 	return quote, nil
 }
 
@@ -367,7 +365,7 @@ func (us *QuoteService) DeleteQuote(ctx context.Context, id uuid.UUID) error {
 		txQuoteRepo := repository.NewQuoteRepository(txDB)
 		txImageRepo := repository.NewQuoteImageRepository(txDB)
 		for _, image := range images {
-			err = us.file.Delete(ctx, image.URL) 
+			err = us.file.Delete(ctx, image.URL)
 			if err != nil {
 				return err
 			}
@@ -380,10 +378,10 @@ func (us *QuoteService) DeleteQuote(ctx context.Context, id uuid.UUID) error {
 		err = txQuoteRepo.DeleteQuote(ctx, quote.ID)
 		return err
 	})
- 
+
 	if err != nil {
-			slog.Error("transaction failed", "error", err)
-			return domain.ErrInternal
+		slog.Error("transaction failed", "error", err)
+		return domain.ErrInternal
 	}
 
 	cacheKey := util.GenerateCacheKey("quote", id)
@@ -407,7 +405,6 @@ func (us *QuoteService) DeleteQuote(ctx context.Context, id uuid.UUID) error {
 
 func (us *QuoteService) ChangeQuoteState(ctx context.Context, id uuid.UUID, state domain.QuoteState) (*domain.Quote, error) {
 	existingQuote, err := us.repo.GetQuoteByID(ctx, id)
-
 	if err != nil {
 		if err == domain.ErrDataNotFound {
 			return nil, err
@@ -417,6 +414,25 @@ func (us *QuoteService) ChangeQuoteState(ctx context.Context, id uuid.UUID, stat
 
 	if existingQuote.State == state {
 		return nil, domain.ErrNoUpdatedData
+	}
+
+	valid := false
+	switch existingQuote.State {
+	case domain.QuotePending:
+		if state == domain.QuotePendingPayment || state == domain.QuoteApproved || state == domain.QuoteRejected || state == domain.QuoteRequiresProof {
+			valid = true
+		}
+	case domain.QuotePendingPayment:
+		if state == domain.QuoteApproved || state == domain.QuoteRejected {
+			valid = true
+		}
+	case domain.QuoteRequiresProof:
+		if state == domain.QuotePendingPayment || state == domain.QuoteRejected {
+			valid = true
+		}
+	}
+	if !valid {
+		return nil, domain.ErrDataNotFound
 	}
 
 	quote := existingQuote
@@ -451,23 +467,48 @@ func (us *QuoteService) ChangeQuoteState(ctx context.Context, id uuid.UUID, stat
 	if err != nil {
 		return nil, domain.ErrInternal
 	}
+	err = us.cache.DeleteByPrefix(ctx, "appointments:*")
+	if err != nil {
+		return nil, domain.ErrInternal
+	}
 	err = us.cache.DeleteByPrefix(ctx, "quoteImages:*")
 	if err != nil {
 		return nil, domain.ErrInternal
 	}
 
+	if state == domain.QuoteApproved {
+		slotRepo := repository.NewAvailabilitySlotRepository(&us.db)
+		err = slotRepo.MarkSlotsAsBookedByQuoteID(ctx, id)
+		if err != nil {
+			return nil, domain.ErrInternal
+		}
+
+		paymentProofRepo := repository.NewPaymentProofRepository(&us.db)
+		err = paymentProofRepo.MarkAsReviewedByQuoteID(ctx, id)
+		if err != nil {
+			return nil, domain.ErrInternal
+		}
+
+		appointmentRepo := repository.NewAppointmentRepository(&us.db)
+		err = appointmentRepo.MarkAsBookedByQuoteID(ctx, id)
+		if err != nil {
+			return nil, domain.ErrInternal
+		}
+	}
+
 	var text string
 
 	if state == domain.QuoteApproved {
-		text = "Estimado cliente su Cotización ha sido aprovada, para seguir con el proceso necesitamos que suba el comprobante de pago al sistema para poder proceder."
+		text = "Estimado cliente su Cotización ha sido aprobada."
 	} else if state == domain.QuoteRejected {
 		text = "Estimado cliente su Cotización ha sido rechazada le recomendamos actualizar los datos de su cotización para una nueva revisión."
 	} else if state == domain.QuoteRequiresProof {
 		text = "Estimado cliente su Cotización para seguir el proceso necesitamos realizar una prueba de mechón para esto es importante que genere una cita en nuestro sistema."
+	} else if state == domain.QuotePendingPayment {
+		text = "Estimado cliente su Cotización ha sido aprobada, para seguir con el proceso necesitamos que suba el comprobante de pago al sistema para poder proceder."
 	}
 
 	client, err := us.user.GetUserByID(ctx, quote.ClientID)
-
 	if err != nil {
 		if err == domain.ErrDataNotFound {
 			return nil, err
@@ -477,7 +518,7 @@ func (us *QuoteService) ChangeQuoteState(ctx context.Context, id uuid.UUID, stat
 
 	emails := []string{client.Email}
 
- 	if err := us.email.SendEmail(
+	if err := us.email.SendEmail(
 		ctx,
 		emails,
 		"Resupesta a su cotización",

@@ -16,16 +16,17 @@ func (q QuoteState) String() string {
 
 // QuoteState enum values
 const (
-	QuotePending       QuoteState = "pending"
-	QuoteApproved      QuoteState = "approved"
-	QuoteRejected      QuoteState = "rejected"
-	QuoteRequiresProof QuoteState = "requires_proof"
+	QuotePending        QuoteState = "pending"
+	QuoteApproved       QuoteState = "approved"
+	QuoteRejected       QuoteState = "rejected"
+	QuoteRequiresProof  QuoteState = "requires_proof"
+	QuotePendingPayment QuoteState = "pending_payment"
 )
 
 // IsValidState checks if a QuoteState is valid
 func (q QuoteState) IsValidState() bool {
 	switch q {
-	case QuotePending, QuoteApproved, QuoteRejected, QuoteRequiresProof:
+	case QuotePending, QuoteApproved, QuoteRejected, QuoteRequiresProof, QuotePendingPayment:
 		return true
 	}
 	return false
