@@ -52,7 +52,7 @@ func (s *TypeOfServiceService) CreateTypeOfService(ctx context.Context, t *domai
 		return nil, domain.ErrInternal
 	}
 
-	err = s.cache.DeleteByPrefix(ctx, "typeofservices appointments:*")
+	err = s.cache.DeleteByPrefix(ctx, "typeofservices:*")
 	if err != nil {
 		return nil, domain.ErrInternal
 	}
