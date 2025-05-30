@@ -92,8 +92,8 @@ func (ps *PaymentProofService) CreatePaymentProof(ctx context.Context, proof *do
 	return created, nil
 }
 
-// GetPaymentProofByID obtiene comprobante por ID con cache
-func (ps *PaymentProofService) GetPaymentProofByID(ctx context.Context, id uuid.UUID) (*domain.PaymentProof, error) {
+// GetPaymentProofByID obtiene comprobante por ID con cache y archivo desde S3
+func (ps *PaymentProofService) GetPaymentProofByID(ctx context.Context, id uuid.UUID) (*domain.PaymentProof, []byte, error) {
 	var proof *domain.PaymentProof
 	cacheKey := util.GenerateCacheKey("paymentProof", id)
 
@@ -101,16 +101,21 @@ func (ps *PaymentProofService) GetPaymentProofByID(ctx context.Context, id uuid.
 	if err == nil {
 		err = util.Deserialize(cached, &proof)
 		if err == nil {
-			return proof, nil
+			// obtener archivo desde S3
+			file, err := ps.file.Get(ctx, proof.URL)
+			if err != nil {
+				return nil, nil, domain.ErrInternal
+			}
+			return proof, file, nil
 		}
 	}
 
 	proof, err = ps.repo.GetPaymentProofByID(ctx, id)
 	if err != nil {
 		if err == domain.ErrDataNotFound {
-			return nil, err
+			return nil, nil, err
 		}
-		return nil, domain.ErrInternal
+		return nil, nil, domain.ErrInternal
 	}
 
 	data, err := util.Serialize(proof)
@@ -118,7 +123,13 @@ func (ps *PaymentProofService) GetPaymentProofByID(ctx context.Context, id uuid.
 		_ = ps.cache.Set(ctx, cacheKey, data, 0)
 	}
 
-	return proof, nil
+	// obtener archivo desde S3
+	file, err := ps.file.Get(ctx, proof.URL)
+	if err != nil {
+		return nil, nil, domain.ErrInternal
+	}
+
+	return proof, file, nil
 }
 
 // GetPaymentProofs lista comprobantes con filtro y cache

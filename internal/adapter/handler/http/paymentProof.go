@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 
 	"harajuku/backend/internal/core/domain"
 	"harajuku/backend/internal/core/port"
@@ -100,7 +101,7 @@ func (h *PaymentProofHandler) CreatePaymentProof(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, newPaymentProofResponse(created))
 }
 
-// GetPaymentProof obtiene un comprobante por ID
+// GetPaymentProof obtiene un comprobante por ID y descarga su archivo
 func (h *PaymentProofHandler) GetPaymentProofByID(ctx *gin.Context) {
 	idStr := ctx.DefaultQuery("id", "")
 	if idStr == "" {
@@ -114,14 +115,19 @@ func (h *PaymentProofHandler) GetPaymentProofByID(ctx *gin.Context) {
 		return
 	}
 
-	paymentProof, err := h.svc.GetPaymentProofByID(ctx, id)
+	// Obtener metadatos + archivo desde S3
+	paymentProof, fileData, err := h.svc.GetPaymentProofByID(ctx, id)
 	if err != nil {
 		handleError(ctx, err)
 		return
 	}
 
-	rsp := newPaymentProofResponse(paymentProof)
-	handleSuccess(ctx, rsp)
+	// Detectar tipo MIME
+	mimeType := http.DetectContentType(fileData)
+
+	// Establecer headers para descarga
+	ctx.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filepath.Base(paymentProof.URL)))
+	ctx.Data(http.StatusOK, mimeType, fileData)
 }
 
 // ListPaymentProofs lista comprobantes con filtros opcionales: quoteId e isReviewed
@@ -202,7 +208,7 @@ func (h *PaymentProofHandler) UpdatePaymentProof(ctx *gin.Context) {
 		return
 	}
 
-	existing, err := h.svc.GetPaymentProofByID(ctx, id)
+	existing, _, err := h.svc.GetPaymentProofByID(ctx, id)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{"error": "No encontrado"})
 		return

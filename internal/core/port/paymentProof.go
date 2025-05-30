@@ -41,8 +41,8 @@ type PaymentProofService interface {
 	UpdatePaymentProof(ctx context.Context, proof *domain.PaymentProof) (*domain.PaymentProof, error)
 	// DeletePaymentProof deletes a payment proof by its ID
 	DeletePaymentProof(ctx context.Context, id uuid.UUID) error
-	// GetPaymentProofByID returns a payment proof by its ID
-	GetPaymentProofByID(ctx context.Context, id uuid.UUID) (*domain.PaymentProof, error)
+	// GetPaymentProofByID returns a payment proof and its file content by its ID
+	GetPaymentProofByID(ctx context.Context, id uuid.UUID) (*domain.PaymentProof, []byte, error)
 	// GetPaymentProofs returns a list of payment proofs, with optional filtering by quoteId
 	GetPaymentProofs(ctx context.Context, filter PaymentProofFilter) ([]domain.PaymentProof, error)
 }

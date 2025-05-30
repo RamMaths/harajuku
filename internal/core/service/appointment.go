@@ -70,7 +70,6 @@ func (as *AppointmentService) CreateAppointment(ctx context.Context, appointment
 		return nil, domain.ErrForbidenAppointment
 	}
 
-	// 💡 Si el estado de la quote es "requires_proof", se agenda automáticamente como booked
 	if quote.State == domain.QuoteRequiresProof {
 		appointment.Status = domain.Booked
 		// Marcar el slot availability como booked
