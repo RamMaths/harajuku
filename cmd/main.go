@@ -138,6 +138,16 @@ func main() {
 	)
 	paymentProofHandler := http.NewPaymentProofHandler(paymentProofService)
 
+	// QuoteImage
+	quoteImageService := service.NewQuoteImageService(
+		quoteImageRepo, // port.QuoteImageRepository
+		s3,             // port.FileRepository
+		quoteRepo,      // port.QuoteRepository
+		*db,            // postgres.DB
+		cache,          // port.CacheRepository
+	)
+	quoteImageHandler := http.NewQuoteImageHandler(quoteImageService)
+
 	// Init router
 	router, err := http.NewRouter(
 		config.HTTP,
@@ -149,6 +159,7 @@ func main() {
 		*availabilitySlotHandler,
 		*appointmentHandler,
 		*paymentProofHandler,
+		*quoteImageHandler,
 	)
 
 	if err != nil {

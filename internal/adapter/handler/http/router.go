@@ -33,6 +33,7 @@ func NewRouter(
 	availabilitySlotHandler AvailabilitySlotHandler,
 	appointmentHandler AppointmentHandler,
 	paymentProofHandler PaymentProofHandler,
+	quoteImageHandler QuoteImageHandler,
 ) (*Router, error) {
 	// Disable debug mode in production
 	if config.Env == "production" {
@@ -131,6 +132,16 @@ func NewRouter(
 			paymentProof.GET("/all", paymentProofHandler.GetPaymentProofs)
 			paymentProof.PUT("", paymentProofHandler.UpdatePaymentProof).Use(adminMiddleware())
 			paymentProof.DELETE("", paymentProofHandler.DeletePaymentProof).Use(adminMiddleware())
+		}
+
+		quoteImages := v1.Group("/quoteimages").Use(authMiddleware(token))
+		{
+			quoteImages.GET("/all", quoteImageHandler.GetQuoteImages)
+			quoteImages.GET("", quoteImageHandler.GetQuoteImageByID)
+			quoteImages.DELETE("", quoteImageHandler.DeleteQuoteImage).Use(adminMiddleware())
+			// Si después agregas POST o PUT:
+			// quoteImages.POST("", quoteImageHandler.CreateQuoteImage)
+			// quoteImages.PUT("", quoteImageHandler.UpdateQuoteImage)
 		}
 
 	}
