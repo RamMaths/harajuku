@@ -32,6 +32,8 @@ func NewRouter(
 	typeOfServiceHandler TypeOfServiceHandler,
 	availabilitySlotHandler AvailabilitySlotHandler,
 	appointmentHandler AppointmentHandler,
+	paymentProofHandler PaymentProofHandler,
+	quoteImageHandler QuoteImageHandler,
 ) (*Router, error) {
 	// Disable debug mode in production
 	if config.Env == "production" {
@@ -52,10 +54,10 @@ func NewRouter(
 	originsList := strings.Split(allowedOrigins, ",")
 	ginConfig.AllowOrigins = originsList
 	ginConfig.AllowHeaders = append(
-		ginConfig.AllowHeaders, 
+		ginConfig.AllowHeaders,
 		"Authorization",
-    "Content-Type",
-    "X-Requested-With",
+		"Content-Type",
+		"X-Requested-With",
 	)
 	ginConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 	// If you need the frontend to read the token or other headers back:
@@ -71,57 +73,57 @@ func NewRouter(
 	router.OPTIONS("/*any", func(c *gin.Context) {
 		c.Status(http.StatusNoContent)
 	})
-
 	// API
 	v1 := router.Group("/v1")
-	{
-		user := v1.Group("/users")
-		{
-			user.POST("/", userHandler.Register)
-			user.POST("/login", authHandler.Login)
 
-			authUser := user.Group("/").Use(authMiddleware(token))
-			{
-				authUser.GET("/", userHandler.ListUsers)
-				authUser.GET("/:id", userHandler.GetUser)
-			}
-		}
+	// Users (unauthenticated + authenticated)
+	v1.POST("/users/", userHandler.Register)
+	v1.POST("/users/login", authHandler.Login)
+	v1.GET("/users/", authMiddleware(token), userHandler.ListUsers)
+	v1.GET("/users/:id", authMiddleware(token), userHandler.GetUser)
 
-		quote := v1.Group("/quotes").Use(authMiddleware(token))
-		{
-			quote.POST("", quoteHandler.CreateQuote)
-			quote.GET("/all", quoteHandler.ListQuotes)
-			quote.GET("", quoteHandler.GetQuote)
-			quote.PUT("", quoteHandler.UpdateQuote)
-			quote.DELETE("", quoteHandler.DeleteQuote)
-		}
+	// Quotes (authenticated, admin for PATCH)
+	v1.POST("/quotes", authMiddleware(token), quoteHandler.CreateQuote)
+	v1.GET("/quotes/all", authMiddleware(token), quoteHandler.ListQuotes)
+	v1.GET("/quotes", authMiddleware(token), quoteHandler.GetQuote)
+	v1.PUT("/quotes", authMiddleware(token), quoteHandler.UpdateQuote)
+	v1.PATCH("/quotes/state", authMiddleware(token), adminMiddleware(), quoteHandler.ChangeQuoteState)
+	v1.DELETE("/quotes", authMiddleware(token), quoteHandler.DeleteQuote)
 
-		typeOfService := v1.Group("/typesofservice").Use(authMiddleware(token))
-		{
-			typeOfService.POST("", typeOfServiceHandler.CreateTypeOfService).Use(adminMiddleware())
-			typeOfService.GET("/all", typeOfServiceHandler.ListTypeOfServices).Use(adminMiddleware())
-			typeOfService.GET("", typeOfServiceHandler.GetTypeOfService).Use(adminMiddleware())
-			typeOfService.PUT("", typeOfServiceHandler.UpdateTypeOfService).Use(adminMiddleware())
-			typeOfService.DELETE("", typeOfServiceHandler.DeleteTypeOfService).Use(adminMiddleware())
-		}
+	// TypeOfService (authenticated, admin for write ops)
+	v1.GET("/typesofservice/all", authMiddleware(token), typeOfServiceHandler.ListTypeOfServices)
+	v1.GET("/typesofservice", authMiddleware(token), typeOfServiceHandler.GetTypeOfService)
+	v1.POST("/typesofservice", authMiddleware(token), adminMiddleware(), typeOfServiceHandler.CreateTypeOfService)
+	v1.PUT("/typesofservice", authMiddleware(token), adminMiddleware(), typeOfServiceHandler.UpdateTypeOfService)
+	v1.DELETE("/typesofservice", authMiddleware(token), adminMiddleware(), typeOfServiceHandler.DeleteTypeOfService)
 
-		availabilitySlot := v1.Group("/availabilityslots").Use(authMiddleware(token))
-		{
-			availabilitySlot.POST("", availabilitySlotHandler.CreateSlot).Use(adminMiddleware())
-			availabilitySlot.GET("", availabilitySlotHandler.ListSlots).Use(adminMiddleware())
-			availabilitySlot.PUT("", availabilitySlotHandler.UpdateSlot).Use(adminMiddleware())
-			availabilitySlot.DELETE("", availabilitySlotHandler.DeleteSlot).Use(adminMiddleware())
-		}
+	// AvailabilitySlots
+	v1.POST("/availabilityslots", authMiddleware(token), adminMiddleware(), availabilitySlotHandler.CreateSlot)
+	v1.GET("/availabilityslots", authMiddleware(token), availabilitySlotHandler.ListSlots)
+	v1.PUT("/availabilityslots", authMiddleware(token), adminMiddleware(), availabilitySlotHandler.UpdateSlot)
+	v1.DELETE("/availabilityslots", authMiddleware(token), adminMiddleware(), availabilitySlotHandler.DeleteSlot)
 
-		appointments := v1.Group("/appointments").Use(authMiddleware(token))
-		{
-			appointments.POST("", appointmentHandler.CreateAppointment)
-			appointments.GET("/all", appointmentHandler.ListAppointments)
-			appointments.GET("", appointmentHandler.GetAppointment)
-			appointments.PUT("", appointmentHandler.UpdateAppointment)
-			appointments.DELETE("", appointmentHandler.DeleteAppointment)
-		}
-	}
+	// Appointments (authenticated)
+	v1.POST("/appointments", authMiddleware(token), appointmentHandler.CreateAppointment)
+	v1.GET("/appointments/all", authMiddleware(token), appointmentHandler.ListAppointments)
+	v1.GET("/appointments", authMiddleware(token), appointmentHandler.GetAppointment)
+	v1.PUT("/appointments", authMiddleware(token), appointmentHandler.UpdateAppointment)
+	v1.DELETE("/appointments", authMiddleware(token), appointmentHandler.DeleteAppointment)
+
+	// PaymentProofs (authenticated, admin for write ops)
+	v1.POST("/paymentproofs", authMiddleware(token), paymentProofHandler.CreatePaymentProof)
+	v1.GET("/paymentproofs", authMiddleware(token), paymentProofHandler.GetPaymentProofByID)
+	v1.GET("/paymentproofs/all", authMiddleware(token), paymentProofHandler.GetPaymentProofs)
+	v1.PUT("/paymentproofs", authMiddleware(token), adminMiddleware(), paymentProofHandler.UpdatePaymentProof)
+	v1.DELETE("/paymentproofs", authMiddleware(token), adminMiddleware(), paymentProofHandler.DeletePaymentProof)
+
+	// QuoteImages (authenticated, admin for delete)
+	v1.GET("/quoteimages/all", authMiddleware(token), quoteImageHandler.GetQuoteImages)
+	v1.GET("/quoteimages", authMiddleware(token), quoteImageHandler.GetQuoteImageByID)
+	v1.DELETE("/quoteimages", authMiddleware(token), adminMiddleware(), quoteImageHandler.DeleteQuoteImage)
+	// If adding these later:
+	// v1.POST("/quoteimages", authMiddleware(token), quoteImageHandler.CreateQuoteImage)
+	// v1.PUT("/quoteimages", authMiddleware(token), quoteImageHandler.UpdateQuoteImage)
 
 	return &Router{
 		router,

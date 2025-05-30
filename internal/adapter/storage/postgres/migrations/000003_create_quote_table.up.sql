@@ -1,4 +1,4 @@
-CREATE TYPE "quote_state_enum" AS ENUM ('pending', 'approved', 'rejected', 'requires_proof');
+CREATE TYPE "quote_state_enum" AS ENUM ('pending', 'approved', 'rejected', 'requires_proof', 'pending_payment');
 
 CREATE TABLE "Quote" (
 	"id" UUID NOT NULL UNIQUE,

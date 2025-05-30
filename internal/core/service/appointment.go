@@ -17,7 +17,7 @@ import (
 type AppointmentService struct {
 	repo  port.AppointmentRepository
 	quote port.QuoteRepository
-	slot 	port.AvailabilitySlotRepository
+	slot  port.AvailabilitySlotRepository
 	cache port.CacheRepository
 }
 
@@ -59,19 +59,37 @@ func (as *AppointmentService) CreateAppointment(ctx context.Context, appointment
 		return nil, domain.ErrInternal
 	}
 
-	if 
-		quote.State == domain.QuoteState(domain.Booked) ||
+	if quote.State == domain.QuoteState(domain.Booked) ||
 		quote.State == domain.QuoteState(domain.Cancelled) ||
 		quote.State == domain.QuoteState(domain.Completed) {
 		return nil, domain.ErrConflictingData
+	}
+
+	if quote.State == domain.QuoteState(domain.QuotePending) ||
+		quote.State == domain.QuoteState(domain.Completed) {
+		return nil, domain.ErrForbidenAppointment
+	}
+
+	if quote.State == domain.QuoteRequiresProof {
+		appointment.Status = domain.Booked
+		// Marcar el slot availability como booked
+		slot.IsBooked = true
+		_, err = as.slot.UpdateAvailabilitySlot(ctx, slot)
+		if err != nil {
+			slog.Error("Failed to update slot availability", "error", err)
+			return nil, domain.ErrInternal
+		}
+
+	} else {
+		appointment.Status = domain.Pending
 	}
 
 	createdAppointment, err := as.repo.CreateAppointment(ctx, appointment)
 	if err != nil {
 		slog.Error("Appointment creation failed", "error", err)
 		if err == domain.ErrConflictingData {
-        return nil, err
-    }
+			return nil, err
+		}
 		return nil, domain.ErrInternal
 	}
 
@@ -186,7 +204,7 @@ func (as *AppointmentService) UpdateAppointment(ctx context.Context, appointment
 		}
 		return nil, domain.ErrInternal
 	}
-		
+
 	//slot validation
 
 	slot, err := as.slot.GetAvailabilitySlotByID(ctx, appointment.SlotID)
@@ -207,7 +225,7 @@ func (as *AppointmentService) UpdateAppointment(ctx context.Context, appointment
 	emptyData := appointment.UserID == zeroUUID &&
 		appointment.SlotID == zeroUUID &&
 		appointment.QuoteID == zeroUUID &&
-		appointment.Status == "" 
+		appointment.Status == ""
 
 	sameData := existingAppointment.UserID == appointment.UserID &&
 		existingAppointment.SlotID == appointment.SlotID &&

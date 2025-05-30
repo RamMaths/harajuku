@@ -98,11 +98,11 @@ func (r *AvailabilitySlotRepository) ListAvailabilitySlots(ctx context.Context, 
 
 	// Filter by AvailabilitySlot.startTime
 	if filter.StartDate != nil {
-			query = query.Where(sq.GtOrEq{`"AvailabilitySlot"."startTime"`: *filter.StartDate})
+		query = query.Where(sq.GtOrEq{`"AvailabilitySlot"."startTime"`: *filter.StartDate})
 	}
 
 	if filter.EndDate != nil {
-			query = query.Where(sq.LtOrEq{`"AvailabilitySlot"."startTime"`: *filter.EndDate})
+		query = query.Where(sq.LtOrEq{`"AvailabilitySlot"."startTime"`: *filter.EndDate})
 	}
 
 	// Filtro por estado
@@ -203,6 +203,36 @@ func (r *AvailabilitySlotRepository) DeleteAvailabilitySlot(ctx context.Context,
 	_, err = r.db.Conn.Exec(ctx, sql, args...)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// MarkSlotsAsBookedByQuoteID actualiza todos los AvailabilitySlot relacionados a una Quote aprobada
+func (r *AvailabilitySlotRepository) MarkSlotsAsBookedByQuoteID(ctx context.Context, quoteID uuid.UUID) error {
+	log.Printf("Marking slots as booked for quote ID: %s\n", quoteID)
+
+	sql := `
+        UPDATE "AvailabilitySlot"
+        SET "isBooked" = TRUE
+        WHERE "id" IN (
+            SELECT "slotId" FROM "Appointment" WHERE "quoteId" = $1
+        )
+        AND "isBooked" = FALSE
+    `
+
+	cmdTag, err := r.db.Conn.Exec(ctx, sql, quoteID)
+	if err != nil {
+		return fmt.Errorf("failed to mark slots as booked: %w", err)
+	}
+
+	rowsAffected := cmdTag.RowsAffected()
+	log.Printf("Rows affected: %d\n", rowsAffected)
+
+	// Opcional: Decide si 0 filas afectadas es realmente un error en tu caso de uso
+	if rowsAffected == 0 {
+		log.Println("No availability slots found to update for quote ID:", quoteID)
+		return nil // o mantener el error si es realmente un caso anómalo
 	}
 
 	return nil
