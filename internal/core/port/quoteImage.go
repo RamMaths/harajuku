@@ -28,13 +28,13 @@ type QuoteImageRepository interface {
 // QuoteImageService is an interface for interacting with quote-image-related business logic
 type QuoteImageService interface {
 	// CreateQuoteImage creates a new quote image
-	CreateQuoteImage(ctx context.Context, quoteImage *domain.QuoteImage) (*domain.QuoteImage, error)
+	//CreateQuoteImage(ctx context.Context, quoteImage *domain.QuoteImage) (*domain.QuoteImage, error)
 	// UpdateQuoteImage updates an existing quote image
-	UpdateQuoteImage(ctx context.Context, quoteImage *domain.QuoteImage) (*domain.QuoteImage, error)
+	//UpdateQuoteImage(ctx context.Context, quoteImage *domain.QuoteImage) (*domain.QuoteImage, error)
 	// DeleteQuoteImage deletes a quote image by its ID
 	DeleteQuoteImage(ctx context.Context, id uuid.UUID) error
 	// GetQuoteImageByID returns a quote image by its ID
-	GetQuoteImageByID(ctx context.Context, id uuid.UUID) (*domain.QuoteImage, error) //
+	GetQuoteImageByID(ctx context.Context, id uuid.UUID) (*domain.QuoteImage, []byte, error) //
 	// GetQuoteImages returns a list of quote images, with optional filtering by quoteId
 	GetQuoteImages(ctx context.Context, quoteId *uuid.UUID, skip, limit uint64) ([]domain.QuoteImage, error)
 }
