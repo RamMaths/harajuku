@@ -27,6 +27,7 @@ type PaymentProofRepository interface {
 	DeletePaymentProof(ctx context.Context, id uuid.UUID) error
 	// GetPaymentProofByID selects a payment proof by its ID
 	GetPaymentProofByID(ctx context.Context, id uuid.UUID) (*domain.PaymentProof, error)
+	GetPaymentProofByQuoteID(ctx context.Context, quoteID uuid.UUID) (*domain.PaymentProof, error)
 	// GetPaymentProofs selects all payment proofs with optional filtering by QuoteID
 	GetPaymentProofs(ctx context.Context, filter PaymentProofFilter) ([]domain.PaymentProof, error)
 	// Wrap a function in a DB transaction; if fn returns an error, rollback

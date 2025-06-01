@@ -48,6 +48,17 @@ func (ps *PaymentProofService) CreatePaymentProof(ctx context.Context, proof *do
 		return nil, domain.ErrDataNotFound
 	}
 
+	// Verificar que no exista ya un comprobante para la cotización
+	existing, err := ps.repo.GetPaymentProofByQuoteID(ctx, proof.QuoteID)
+	if err != nil && err != domain.ErrDataNotFound {
+		slog.Error("failed to get existing payment proof", "error", err)
+		return nil, domain.ErrInternal
+	}
+	if existing != nil {
+		slog.Warn("payment proof already exists for quote", "quoteID", proof.QuoteID)
+		return nil, domain.ErrConflictingData
+	}
+
 	// Upload the image first. Fail fast if this errors.
 	path, err := ps.file.Save(ctx, file, fileName)
 	if err != nil {
