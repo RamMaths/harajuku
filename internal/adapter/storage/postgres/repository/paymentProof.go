@@ -79,6 +79,36 @@ func (r *PaymentProofRepository) GetPaymentProofByID(ctx context.Context, id uui
 	return &paymentProof, nil
 }
 
+// GetPaymentProofByQuoteID selecciona un comprobante por su QuoteID
+func (r *PaymentProofRepository) GetPaymentProofByQuoteID(ctx context.Context, quoteID uuid.UUID) (*domain.PaymentProof, error) {
+	var paymentProof domain.PaymentProof
+
+	query := r.db.QueryBuilder.Select("*").
+		From("\"PaymentProof\"").
+		Where(sq.Eq{"\"quoteId\"": quoteID}).
+		Limit(1)
+
+	sql, args, err := query.ToSql()
+	if err != nil {
+		return nil, err
+	}
+
+	err = r.db.Conn.QueryRow(ctx, sql, args...).Scan(
+		&paymentProof.ID,
+		&paymentProof.QuoteID,
+		&paymentProof.URL,
+		&paymentProof.IsReviewed,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil // No es error, simplemente no hay comprobante aún
+		}
+		return nil, err
+	}
+
+	return &paymentProof, nil
+}
+
 // GetPaymentProofs selects all payment proofs with optional filtering by QuoteID and IsReviewed
 func (r *PaymentProofRepository) GetPaymentProofs(ctx context.Context, filter port.PaymentProofFilter) ([]domain.PaymentProof, error) {
 	var paymentProofs []domain.PaymentProof
