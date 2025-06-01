@@ -57,6 +57,7 @@ func NewRouter(
 		ginConfig.AllowHeaders,
 		"Authorization",
 		"Content-Type",
+    "Content-Disposition",
 		"X-Requested-With",
 	)
 	ginConfig.AllowMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
